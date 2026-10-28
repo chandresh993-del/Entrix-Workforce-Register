@@ -166,12 +166,12 @@ label input:focus{outline:2px solid var(--accent);border-color:transparent}
 <script>
 /* ====== SETTINGS — edit these ====== */
 const FIREBASE_CONFIG = {
-  apiKey: "PASTE_YOUR_API_KEY_HERE",
-  authDomain: "entrix-quotation-app.firebaseapp.com",
-  projectId: "entrix-quotation-app",
-  storageBucket: "entrix-quotation-app.appspot.com",
-  messagingSenderId: "279992464314",
-  appId: "1:279992464314:web:8447e4e115436817f66383"
+  apiKey: "AIzaSyCyd4AJtguX3werThIF_BSs0GzXDIfJu88",
+  authDomain: "entrix-workforce.firebaseapp.com",
+  projectId: "entrix-workforce",
+  storageBucket: "entrix-workforce.firebasestorage.app",
+  messagingSenderId: "398234425817",
+  appId: "1:398234425817:web:b8f9af853aaa0f57c3a1c8"
 };
 const COLLECTION = "workforce_contacts";   // Firestore collection used by this app
 const DELETE_PIN = "1234";                 // PIN needed to delete a contact
@@ -400,8 +400,7 @@ render();
     rows=snap.docs.map(s=>({id:s.id,...s.data()}));
     render();
   },err=>{
-    if(err&&err.code==="permission-denied"){toast("Online database refused access — using this phone only");localMode();}
-    else $("out").innerHTML='<div class="empty">The list stopped updating. Reload the page.</div>';
+    toast(err&&err.code==="permission-denied"?"Online database refused access — saving on this phone only":"Can't reach the online database — saving on this phone only");localMode();
   });
 })();
 })();
