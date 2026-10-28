@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1f4e78">
+<title>ENTRIX Workforce Register</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}
+/* Layout: sticky header with search + category tabs, sectioned contact list, bottom-sheet form for add/edit */
+:root{
+  --bg:#f3f5f7; --surface:#ffffff; --fg:#17212b; --muted:#5d6b78; --line:#d8dee4;
+  --brand:#1f4e78; --brand-fg:#ffffff; --accent:#e8a317; --danger:#b42318; --chip:#e7edf3;
+  --c-labour:#2e75b6; --c-civil:#8a6a00; --c-sub:#4f7d2e; --c-fab:#c55a11; --c-elec:#7a3fb0; --c-trans:#4a5560; --c-other:#3d7a7a;
+  --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f151b; --surface:#18212a; --fg:#e6ecf1; --muted:#9aa8b5; --line:#2a3642;
+  --brand:#16324d; --brand-fg:#ffffff; --accent:#f0b43a; --danger:#f97066; --chip:#22303d;
+  --c-labour:#5b9ee0; --c-civil:#d1a933; --c-sub:#7fb556; --c-fab:#f08a45; --c-elec:#b183e0; --c-trans:#9aa7b3; --c-other:#6cb8b8;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f151b; --surface:#18212a; --fg:#e6ecf1; --muted:#9aa8b5; --line:#2a3642;
+  --brand:#16324d; --brand-fg:#ffffff; --accent:#f0b43a; --danger:#f97066; --chip:#22303d;
+  --c-labour:#5b9ee0; --c-civil:#d1a933; --c-sub:#7fb556; --c-fab:#f08a45; --c-elec:#b183e0; --c-trans:#9aa7b3; --c-other:#6cb8b8;
+  color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.45}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--brand)}
+.wrap{max-width:860px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--brand);color:var(--brand-fg);box-shadow:0 2px 8px rgba(0,0,0,.15)}
+header .wrap{padding-block:12px 10px;display:grid;gap:10px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+h1{font-family:var(--display);font-weight:700;font-size:26px;letter-spacing:.02em;margin:0;line-height:1;text-transform:uppercase}
+h1 small{display:block;font-family:var(--body);font-weight:500;font-size:11px;letter-spacing:.12em;opacity:.75;margin-top:4px}
+.total{font-family:var(--mono);font-size:13px;background:rgba(255,255,255,.12);padding:6px 10px;border-radius:6px;white-space:nowrap}
+.search{width:100%;font:inherit;padding:10px 12px;border-radius:8px;border:0;background:#fff;color:#17212b}
+.search:focus{outline:3px solid var(--accent);outline-offset:0}
+.tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:none;font:600 13px var(--body);color:var(--brand-fg);background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:999px;padding:6px 12px;cursor:pointer;white-space:nowrap}
+.tab b{font-family:var(--mono);font-weight:500;opacity:.8;margin-left:4px}
+.tab[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#1a1300}
+.tab:focus-visible{outline:2px solid #fff;outline-offset:2px}
+main .wrap{padding-block:16px 110px;display:grid;gap:20px}
+.sec{display:grid;gap:8px}
+.sec-h{display:flex;align-items:center;gap:10px;font-family:var(--display);font-weight:700;font-size:20px;text-transform:uppercase;letter-spacing:.04em}
+.sec-h::before{content:"";width:12px;height:12px;border-radius:3px;background:var(--cat)}
+.sec-h span{font-family:var(--mono);font-size:13px;color:var(--muted);font-weight:500}
+.list{display:grid;gap:8px}
+.card{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--cat);border-radius:8px;padding:12px 14px;display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:start}
+.card .nm{font-weight:600;font-size:16px;min-width:0;overflow-wrap:anywhere}
+.card .tr{grid-column:1;color:var(--muted);font-size:13px}
+.card .meta{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:4px;font-size:14px}
+.ph{font-family:var(--mono);font-size:14px;color:var(--fg);background:var(--chip);border:0;border-radius:6px;padding:4px 8px;cursor:pointer}
+.ph:focus-visible,.btn:focus-visible,.icon:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.addr{color:var(--muted);align-self:center}
+.icon{font:600 13px var(--body);background:none;border:1px solid var(--line);color:var(--fg);border-radius:6px;padding:5px 10px;cursor:pointer}
+.empty{background:var(--surface);border:1px dashed var(--line);border-radius:8px;padding:24px;text-align:center;color:var(--muted)}
+.fab{position:fixed;right:max(16px,calc(env(safe-area-inset-right,0px) + 16px));bottom:calc(env(safe-area-inset-bottom,0px) + 18px);z-index:6;font:700 16px var(--body);background:var(--accent);color:#1a1300;border:0;border-radius:999px;padding:14px 22px;box-shadow:0 6px 18px rgba(0,0,0,.25);cursor:pointer}
+.fab:focus-visible{outline:3px solid var(--fg);outline-offset:2px}
+.sheet-bg{position:fixed;inset:0;background:rgba(10,15,20,.55);z-index:20;display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--surface);color:var(--fg);width:100%;max-width:560px;max-height:92vh;overflow:auto;border-radius:14px 14px 0 0;padding:18px max(16px,env(safe-area-inset-right,0px)) calc(18px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:grid;gap:12px}
+@media (min-width:600px){.sheet-bg{align-items:center}.sheet{border-radius:14px}}
+.sheet h2{font-family:var(--display);font-size:24px;text-transform:uppercase;margin:0;letter-spacing:.03em}
+label{display:grid;gap:4px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+label input{font:400 16px var(--body);letter-spacing:0;text-transform:none;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px;width:100%}
+label input:focus{outline:2px solid var(--accent);border-color:transparent}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width:440px){.row2{grid-template-columns:1fr}}
+.cats{display:flex;flex-wrap:wrap;gap:6px}
+.cat{font:600 14px var(--body);border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:999px;padding:7px 12px;cursor:pointer}
+.cat[aria-pressed="true"]{background:var(--cat);border-color:var(--cat);color:#fff}
+.actions{display:flex;gap:8px;justify-content:space-between;flex-wrap:wrap;margin-top:4px}
+.actions .right{display:flex;gap:8px;margin-left:auto}
+.btn{font:600 15px var(--body);border-radius:8px;padding:10px 16px;cursor:pointer;border:1px solid var(--line);background:var(--bg);color:var(--fg)}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:var(--brand-fg)}
+.btn.danger{color:var(--danger);border-color:var(--danger);background:transparent}
+.err{color:var(--danger);font-size:14px;margin:0}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 84px);background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:14px;z-index:30}
+.share{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.share .lbl{font-size:13px;color:var(--muted);margin-right:auto}
+.sbtn{display:inline-flex;align-items:center;gap:8px;font:600 14px var(--body);border-radius:8px;padding:9px 14px;cursor:pointer;text-decoration:none;border:1px solid var(--line);background:var(--surface);color:var(--fg)}
+.sbtn svg{width:18px;height:18px;flex:none}
+.sbtn.wa{background:#1fa855;border-color:#1fa855;color:#fff}
+.sbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.sbtn[disabled]{opacity:.5;cursor:default}
+.ro{font-size:13px;color:var(--brand-fg);opacity:.85}
+@media (prefers-reduced-motion:no-preference){.sheet{animation:up .18s ease-out}@keyframes up{from{transform:translateY(24px);opacity:.6}}}
+.print-only{display:none}
+@media print{
+  header,.share,.fab,.icon,.toast,.sheet-bg,body::before{display:none!important}
+  body{background:#fff!important;color:#000!important;font-size:11pt}
+  .print-only{display:block;text-align:center;margin-bottom:10px}
+  .print-only h2{margin:0;font-size:18pt}.print-only p{margin:2px 0;font-size:9pt}
+  main .wrap{padding:0!important;max-width:none}
+  .sec{break-inside:auto}.card{break-inside:avoid;border-color:#bbb;background:#fff}
+  .ph{background:none;padding:0;color:#000}
+  @page{size:A4;margin:12mm}
+}
+</style>
+</head><body>
+
+<header>
+  <div class="wrap">
+    <div class="top">
+      <h1>Workforce Register<small>ENTRIX Innovation · Labour, Contractors &amp; Vendors</small></h1>
+      <span class="total" id="total">— people</span>
+    </div>
+    <input class="search" id="q" type="search" placeholder="Search name, trade, mobile or place" autocomplete="off">
+    <div class="tabs" id="tabs" role="group" aria-label="Filter by category"></div>
+    <div class="ro" id="ro" hidden>View only — you can't add or edit entries.</div>
+  </div>
+</header>
+
+<main><div class="wrap">
+  <div class="print-only"><h2>ENTRIX Innovation — Workforce List</h2><p id="printSub"></p></div>
+  <div class="share" id="share">
+    <span class="lbl" id="shareLbl">Share or print this list</span>
+    <a class="sbtn wa" id="wa" href="https://wa.me/" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.7.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.3-.4.8-1.4.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.8 11.9 11.9 0 0 0 4.6 4c1.7.7 2.4.8 3.2.7.5-.1 1.5-.6 1.8-1.2s.2-1.1.1-1.2l-.4-.2z"/></svg>Share on WhatsApp</a>
+    <button class="sbtn" id="pdf" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Print</button>
+    <button class="sbtn" id="pdfdl" type="button">Save PDF</button>
+  </div>
+  <div id="out" style="display:grid;gap:20px"><div class="empty">Loading contacts…</div></div>
+</div></main>
+
+<button class="fab" id="add" type="button">+ Add person</button>
+
+<div class="sheet-bg" id="sheetBg" hidden>
+  <form class="sheet" id="form" novalidate>
+    <h2 id="formTitle">Add person</h2>
+    <label>Name<input id="f-name" required autocomplete="off"></label>
+    <div>
+      <label style="margin-bottom:6px">Category</label>
+      <div class="cats" id="catPick"></div>
+      <label style="margin-top:8px" id="newCatWrap" hidden>New category name<input id="f-newcat" autocomplete="off" placeholder="e.g. Painter"></label>
+    </div>
+    <label>Trade / Skill<input id="f-trade" autocomplete="off" placeholder="e.g. Pole Installation"></label>
+    <div class="row2">
+      <label>Mobile No.<input id="f-mobile" type="tel" inputmode="tel" autocomplete="off" placeholder="+91 98765 43210"></label>
+      <label>Alternate No.<input id="f-alt" type="tel" inputmode="tel" autocomplete="off"></label>
+    </div>
+    <label>Address / Place<input id="f-addr" autocomplete="off" placeholder="e.g. Wadi, Nagpur"></label>
+    <label id="pinWrap" hidden>Admin PIN to delete<input id="f-pin" type="password" inputmode="numeric" autocomplete="off"></label>
+    <p class="err" id="err" hidden></p>
+    <div class="actions">
+      <button class="btn danger" type="button" id="del" hidden>Delete</button>
+      <div class="right">
+        <button class="btn" type="button" id="cancel">Cancel</button>
+        <button class="btn primary" type="submit" id="save">Save</button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+/* ====== SETTINGS — edit these ====== */
+const FIREBASE_CONFIG = {
+  apiKey: "PASTE_YOUR_API_KEY_HERE",
+  authDomain: "entrix-quotation-app.firebaseapp.com",
+  projectId: "entrix-quotation-app",
+  storageBucket: "entrix-quotation-app.appspot.com",
+  messagingSenderId: "279992464314",
+  appId: "1:279992464314:web:8447e4e115436817f66383"
+};
+const COLLECTION = "workforce_contacts";   // Firestore collection used by this app
+const DELETE_PIN = "1234";                 // PIN needed to delete a contact
+const SEED = [{"id": "seed01", "name": "Guddu Varma", "category": "Labour", "trade": "", "mobile": "+91 79850 34172", "alt": "", "address": "UP"}, {"id": "seed02", "name": "Aman Varma", "category": "Labour", "trade": "", "mobile": "+91 76198 18449", "alt": "", "address": ""}, {"id": "seed03", "name": "Mukesh Varma", "category": "Labour", "trade": "All Rounder", "mobile": "+91 93354 47078", "alt": "", "address": "UP"}, {"id": "seed04", "name": "Jeetu Varma", "category": "Labour", "trade": "Loading / Unloading", "mobile": "+91 73074 46485", "alt": "", "address": "UP"}, {"id": "seed05", "name": "Ramesh Kumar", "category": "Labour", "trade": "Metal Work", "mobile": "+91 91984 45758", "alt": "", "address": "UP"}, {"id": "seed06", "name": "Shahrukh", "category": "Labour", "trade": "", "mobile": "+91 73852 07209", "alt": "", "address": "Wani"}, {"id": "seed07", "name": "Charan", "category": "Labour", "trade": "", "mobile": "+91 78755 72297", "alt": "", "address": "Chamorshi"}, {"id": "seed08", "name": "Zoeb Asim", "category": "Fabricator", "trade": "Fabricator", "mobile": "+91 90222 21389", "alt": "", "address": "Zingabai Takali, Gorewada, Nagpur"}, {"id": "seed09", "name": "Sahare", "category": "Fabricator", "trade": "Fabricator", "mobile": "+91 90216 87964", "alt": "", "address": "Bidgaon, Nagpur"}, {"id": "seed10", "name": "Shramik", "category": "Fabricator", "trade": "Fabricator", "mobile": "+91 96658 80775", "alt": "", "address": "Bahadura, Dighori, Nagpur"}, {"id": "seed11", "name": "Vaibhav Khokle", "category": "Subcontractor", "trade": "All Rounder", "mobile": "+91 93700 98563", "alt": "+91 94226 17436", "address": "Wadi, Nagpur"}, {"id": "seed12", "name": "Om Tapare", "category": "Subcontractor", "trade": "Civil Contractor", "mobile": "+91 96658 80775", "alt": "", "address": "Nanded"}, {"id": "seed13", "name": "Vishal Ramteke", "category": "Subcontractor", "trade": "Civil Subcontractor", "mobile": "+91 77984 44314", "alt": "", "address": "Nagpur"}, {"id": "seed14", "name": "Pundalik Lanjewar", "category": "Subcontractor", "trade": "Civil + Plumbing", "mobile": "+91 98232 69934", "alt": "", "address": "Kuhi"}, {"id": "seed15", "name": "Piyush Kathane", "category": "Subcontractor", "trade": "Pole Installation", "mobile": "+91 74999 93902", "alt": "", "address": "Yavatmal"}, {"id": "seed16", "name": "Uday", "category": "Electrician", "trade": "Electrician", "mobile": "+91 95032 79560", "alt": "", "address": "Nagpur"}, {"id": "seed17", "name": "Manglesh Patve", "category": "Electrician", "trade": "Solar Wiring & Installation", "mobile": "+91 88273 04354", "alt": "", "address": "Nagpur"}, {"id": "seed18", "name": "Sanjay Patale", "category": "Transporter", "trade": "Transporter", "mobile": "+91 93702 51413", "alt": "", "address": "Nagpur"}, {"id": "seed19", "name": "Ramesh Mahhale", "category": "Subcontractor", "trade": "Civil Contractor", "mobile": "+91 78238 80977", "alt": "", "address": "Sawali Village, Nagpur"}];
+/* =================================== */
+</script>
+<script>
+(function(){
+const BASE=["Labour","Civil","Subcontractor","Fabricator","Electrician","Transporter"];
+const COLOR={Labour:"--c-labour",Civil:"--c-civil",Subcontractor:"--c-sub",Fabricator:"--c-fab",Electrician:"--c-elec",Transporter:"--c-trans"};
+const $=id=>document.getElementById(id);
+let rows=[], filter="All", q="", db=null, canWrite=true, editing=null, pickCat="Labour", confirmDel=false;
+
+const catVar=c=>`var(${COLOR[c]||"--c-other"})`;
+const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+function fmtPhone(v){
+  let d=String(v||"").replace(/[^\d]/g,"");
+  if(!d) return "";
+  if(d.length===12&&d.startsWith("91")) d=d.slice(2);
+  if(d.length===11&&d.startsWith("0")) d=d.slice(1);
+  if(d.length===10) return "+91 "+d.slice(0,5)+" "+d.slice(5);
+  return String(v).trim();
+}
+function cats(){
+  const extra=[...new Set(rows.map(r=>r.category).filter(c=>c&&!BASE.includes(c)))].sort();
+  return BASE.concat(extra);
+}
+function toast(t){const el=$("toast");el.textContent=t;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>el.hidden=true,1800);}
+
+function renderTabs(){
+  const counts={};rows.forEach(r=>counts[r.category]=(counts[r.category]||0)+1);
+  const list=["All",...cats()];
+  $("tabs").innerHTML=list.map(c=>`<button class="tab" type="button" data-c="${esc(c)}" aria-pressed="${c===filter}">${esc(c)}<b>${c==="All"?rows.length:(counts[c]||0)}</b></button>`).join("");
+  $("total").textContent=rows.length+(rows.length===1?" person":" people");
+}
+function match(r){
+  if(!q) return true;
+  const hay=[r.name,r.trade,r.mobile,r.alt,r.address,r.category].join(" ").toLowerCase();
+  const qd=q.replace(/[^\d]/g,"");
+  return hay.includes(q)||(qd.length>=3&&hay.replace(/[^\d]/g,"").includes(qd));
+}
+function visibleGroups(){
+  const show=(filter==="All"?cats():[filter]);
+  return show.map(c=>[c,rows.filter(r=>r.category===c&&match(r)).sort((a,b)=>(a.name||"").localeCompare(b.name||""))]).filter(g=>g[1].length);
+}
+function scopeLabel(){return (filter==="All"?"All categories":filter)+(q?` · search “${q}”`:"");}
+function waText(){
+  const g=visibleGroups(); const n=g.reduce((t,x)=>t+x[1].length,0);
+  let t=`*ENTRIX Innovation – Workforce List*\n${scopeLabel()} · ${n} people\n`;
+  for(const [c,items] of g){
+    t+=`\n*${c.toUpperCase()} (${items.length})*\n`;
+    items.forEach((r,i)=>{t+=`${i+1}. ${r.name}${r.trade?` – ${r.trade}`:""}\n   📞 ${r.mobile}${r.alt?` / ${r.alt}`:""}${r.address?`\n   📍 ${r.address}`:""}\n`;});
+  }
+  return t;
+}
+function updateShare(){
+  const g=visibleGroups(); const n=g.reduce((t,x)=>t+x[1].length,0);
+  $("shareLbl").textContent=`${scopeLabel()} · ${n} ${n===1?"person":"people"}`;
+  $("wa").href="https://wa.me/?text="+encodeURIComponent(waText());
+  $("pdf").disabled=!n;$("pdfdl").disabled=!n;
+}
+function render(){
+  renderTabs();
+  const show=(filter==="All"?cats():[filter]);
+  let html="",any=false;
+  for(const c of show){
+    const items=rows.filter(r=>r.category===c&&match(r)).sort((a,b)=>(a.name||"").localeCompare(b.name||""));
+    if(!items.length && (filter==="All"||q)) continue;
+    any=true;
+    html+=`<section class="sec" style="--cat:${catVar(c)}"><div class="sec-h">${esc(c)}<span>${items.length}</span></div><div class="list">`;
+    if(!items.length) html+=`<div class="empty">No ${esc(c.toLowerCase())} contacts yet. Tap <b>+ Add person</b> to add one.</div>`;
+    for(const r of items){
+      html+=`<article class="card" style="--cat:${catVar(c)}">
+        <div class="nm">${esc(r.name)}</div>
+        ${canWrite?`<button class="icon" type="button" data-edit="${esc(r.id)}">Edit</button>`:""}
+        ${r.trade?`<div class="tr">${esc(r.trade)}</div>`:""}
+        <div class="meta">
+          ${r.mobile?`<button class="ph" type="button" data-copy="${esc(r.mobile)}" title="Copy number">${esc(r.mobile)}</button>`:""}
+          ${r.alt?`<button class="ph" type="button" data-copy="${esc(r.alt)}" title="Copy number">${esc(r.alt)}</button>`:""}
+          ${r.address?`<span class="addr">${esc(r.address)}</span>`:""}
+        </div></article>`;
+    }
+    html+=`</div></section>`;
+  }
+  if(!any) html=rows.length?`<div class="empty">No one matches “${esc(q)}”.</div>`:`<div class="empty">No contacts yet. Tap <b>+ Add person</b> to add the first one.</div>`;
+  $("out").innerHTML=html;
+  updateShare();
+}
+
+$("tabs").addEventListener("click",e=>{const b=e.target.closest(".tab");if(!b)return;filter=b.dataset.c;render();window.scrollTo({top:0});});
+$("q").addEventListener("input",e=>{q=e.target.value.trim().toLowerCase();render();});
+$("out").addEventListener("click",async e=>{
+  const c=e.target.closest("[data-copy]");
+  if(c){try{await navigator.clipboard.writeText(c.dataset.copy);toast("Number copied");}catch(_){const s=getSelection(),rg=document.createRange();rg.selectNodeContents(c);s.removeAllRanges();s.addRange(rg);toast("Number selected — copy it");}return;}
+  const ed=e.target.closest("[data-edit]");
+  if(ed){openForm(rows.find(r=>r.id===ed.dataset.edit));}
+});
+
+function renderCatPick(){
+  const list=cats().concat(["+ New"]);
+  $("catPick").innerHTML=list.map(c=>`<button type="button" class="cat" data-c="${esc(c)}" style="--cat:${c==="+ New"?"var(--brand)":catVar(c)}" aria-pressed="${c===pickCat}">${esc(c)}</button>`).join("");
+  $("newCatWrap").hidden=pickCat!=="+ New";
+}
+$("catPick").addEventListener("click",e=>{const b=e.target.closest(".cat");if(!b)return;pickCat=b.dataset.c;renderCatPick();if(pickCat==="+ New")$("f-newcat").focus();});
+
+function openForm(r){
+  editing=r||null;confirmDel=false;
+  $("formTitle").textContent=r?"Edit person":"Add person";
+  $("f-name").value=r?.name||"";$("f-trade").value=r?.trade||"";$("f-mobile").value=r?.mobile||"";
+  $("f-alt").value=r?.alt||"";$("f-addr").value=r?.address||"";$("f-newcat").value="";
+  pickCat=r?.category||(filter!=="All"?filter:"Labour");
+  $("del").hidden=!r;$("del").textContent="Delete";$("pinWrap").hidden=true;$("err").hidden=true;
+  renderCatPick();$("sheetBg").hidden=false;setTimeout(()=>$("f-name").focus(),50);
+}
+function closeForm(){$("sheetBg").hidden=true;editing=null;}
+$("add").addEventListener("click",()=>openForm(null));
+$("cancel").addEventListener("click",closeForm);
+$("sheetBg").addEventListener("click",e=>{if(e.target===$("sheetBg"))closeForm();});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("sheetBg").hidden)closeForm();});
+function showErr(t){$("err").textContent=t;$("err").hidden=false;}
+
+$("form").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const name=$("f-name").value.trim();
+  let category=pickCat==="+ New"?$("f-newcat").value.trim():pickCat;
+  if(category) category=category.charAt(0).toUpperCase()+category.slice(1);
+  const mobile=fmtPhone($("f-mobile").value);
+  if(!name) return showErr("Enter a name.");
+  if(!category) return showErr("Type a name for the new category.");
+  if(!mobile) return showErr("Enter a mobile number.");
+  const dup=rows.find(r=>r.id!==editing?.id&&(r.mobile===mobile||r.alt===mobile));
+  const data={name,category,trade:$("f-trade").value.trim(),mobile,alt:fmtPhone($("f-alt").value),address:$("f-addr").value.trim(),updatedAt:new Date().toISOString()};
+  if(!db) return showErr("Saving isn't available right now. Reload the page and try again.");
+  $("save").disabled=true;
+  try{
+    if(editing){await db.collection(COLLECTION).doc(editing.id).set({...data,createdAt:editing.createdAt||data.updatedAt});toast("Saved");}
+    else{await db.collection(COLLECTION).add({...data,createdAt:data.updatedAt});toast(dup?`Added — note: same number as ${dup.name}`:"Added");}
+    closeForm();
+  }catch(err){
+    showErr(err&&err.code==="permission-denied"?"Firestore refused the save. Check the database rules (see README).":"Couldn't save. Check your connection and try again.");
+  }finally{$("save").disabled=false;}
+});
+$("del").addEventListener("click",async()=>{
+  if(!editing) return;
+  if(!confirmDel){confirmDel=true;$("pinWrap").hidden=false;$("f-pin").value="";$("f-pin").focus();$("del").textContent="Confirm delete";return;}
+  if($("f-pin").value.trim()!==DELETE_PIN){showErr("Wrong PIN. Only the admin can delete contacts.");return;}
+  try{await db.collection(COLLECTION).doc(editing.id).delete();toast("Deleted");closeForm();}
+  catch(_){showErr("Couldn't delete. Try again.");}
+});
+
+$("pdf").addEventListener("click",()=>{
+  $("printSub").textContent=scopeLabel()+" · "+new Date().toLocaleDateString("en-GB")+" · Temasana, Nagpur | sales01@entrix.co.in | +91 95525 52667";
+  window.print();
+});
+$("pdfdl").addEventListener("click",async()=>{
+  const g=visibleGroups(); if(!g.length) return;
+  if(!window.jspdf){toast("PDF tool didn't load. Check your connection and reload.");return;}
+  const {jsPDF}=window.jspdf; const doc=new jsPDF({orientation:"landscape",unit:"mm",format:"a4"});
+  const W=doc.internal.pageSize.getWidth(), today=new Date().toLocaleDateString("en-GB");
+  const COLS={Labour:[46,117,182],Civil:[138,106,0],Subcontractor:[79,125,46],Fabricator:[197,90,17],Electrician:[122,63,176],Transporter:[74,85,96]};
+  doc.setFillColor(31,78,120); doc.rect(0,0,W,22,"F");
+  doc.setTextColor(255); doc.setFont("helvetica","bold"); doc.setFontSize(16);
+  doc.text("ENTRIX Innovation — Workforce List",W/2,10,{align:"center"});
+  doc.setFont("helvetica","normal"); doc.setFontSize(9);
+  doc.text("Temasana, Nagpur  |  sales01@entrix.co.in  |  +91 95525 52667",W/2,16.5,{align:"center"});
+  doc.setTextColor(60); doc.setFontSize(9);
+  const n=g.reduce((t,x)=>t+x[1].length,0);
+  doc.text(`${scopeLabel().replace(/[“”]/g,'"')}  ·  ${n} people`,14,29); doc.text(`Date: ${today}`,W-14,29,{align:"right"});
+  let y=33;
+  for(const [c,items] of g){
+    const col=COLS[c]||[61,122,122];
+    if(y>175){doc.addPage(); y=14;}
+    doc.setFillColor(...col); doc.rect(14,y,W-28,7,"F");
+    doc.setTextColor(255); doc.setFont("helvetica","bold"); doc.setFontSize(10.5);
+    doc.text(`${c.toUpperCase()}  (${items.length})`,17,y+4.9);
+    doc.autoTable({startY:y+7,margin:{left:14,right:14},theme:"grid",
+      head:[["Sr.","Name","Trade / Skill","Mobile No.","Alternate No.","Address / Place"]],
+      body:items.map((r,i)=>[i+1,r.name,r.trade||"",r.mobile||"",r.alt||"",r.address||""]),
+      styles:{font:"helvetica",fontSize:9.5,cellPadding:2,lineColor:[200,205,210],lineWidth:.2,textColor:[25,33,43]},
+      headStyles:{fillColor:[217,225,242],textColor:[25,33,43],fontStyle:"bold"},
+      alternateRowStyles:{fillColor:[245,246,248]},
+      columnStyles:{0:{cellWidth:11,halign:"center"},1:{cellWidth:50},2:{cellWidth:50},3:{cellWidth:36,halign:"center"},4:{cellWidth:36,halign:"center"}}});
+    y=doc.lastAutoTable.finalY+8;
+  }
+  const pages=doc.internal.getNumberOfPages();
+  for(let i=1;i<=pages;i++){doc.setPage(i);doc.setFontSize(8);doc.setTextColor(120);doc.text(`Page ${i} of ${pages}`,W-14,doc.internal.pageSize.getHeight()-6,{align:"right"});}
+  const name=`ENTRIX_Workforce_${filter==="All"?"All":filter}_${today.replace(/\//g,"-")}.pdf`;
+  const blob=doc.output("blob"); const file=new File([blob],name,{type:"application/pdf"});
+  if(navigator.canShare&&navigator.canShare({files:[file]})){
+    try{await navigator.share({files:[file],title:"ENTRIX Workforce List"});return;}catch(e){if(e&&e.name==="AbortError")return;}
+  }
+  doc.save(name); toast("PDF saved to Downloads");
+});
+
+function applyRO(){$("add").hidden=!canWrite;$("ro").hidden=canWrite;render();}
+
+render();
+(function boot(){
+  if(!window.firebase){$("out").innerHTML='<div class="empty">Couldn\'t load the database. Check your internet and reload.</div>';$("add").hidden=true;return;}
+  if(FIREBASE_CONFIG.apiKey.startsWith("PASTE")){$("out").innerHTML='<div class="empty">Setup needed: paste your Firebase apiKey into FIREBASE_CONFIG in index.html.</div>';$("add").hidden=true;return;}
+  firebase.initializeApp(FIREBASE_CONFIG);
+  db=firebase.firestore();
+  try{db.enablePersistence({synchronizeTabs:true}).catch(()=>{});}catch(_){}
+  applyRO();
+  let seeded=false;
+  db.collection(COLLECTION).onSnapshot({includeMetadataChanges:false},snap=>{
+    if(snap.empty&&!snap.metadata.fromCache&&!seeded){
+      seeded=true;const b=db.batch();const now=new Date().toISOString();
+      SEED.forEach(({id,...d})=>b.set(db.collection(COLLECTION).doc(id),{...d,createdAt:now,updatedAt:now}));
+      b.commit().catch(()=>{});return;
+    }
+    rows=snap.docs.map(s=>({id:s.id,...s.data()}));
+    render();
+  },err=>{$("out").innerHTML='<div class="empty">'+(err&&err.code==="permission-denied"?"The database refused access. Update the Firestore rules (see README).":"The list stopped updating. Reload the page.")+'</div>';});
+})();
+})();
+</script>
+</body></html>
