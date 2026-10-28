@@ -116,6 +116,7 @@ label input:focus{outline:2px solid var(--accent);border-color:transparent}
     </div>
     <input class="search" id="q" type="search" placeholder="Search name, trade, mobile or place" autocomplete="off">
     <div class="tabs" id="tabs" role="group" aria-label="Filter by category"></div>
+    <div class="ro" id="localNote" hidden>Saved on this phone only. Add the Firebase key to share the list with everyone.</div>
     <div class="ro" id="ro" hidden>View only — you can't add or edit entries.</div>
   </div>
 </header>
@@ -182,7 +183,7 @@ const SEED = [{"id": "seed01", "name": "Guddu Varma", "category": "Labour", "tra
 const BASE=["Labour","Civil","Subcontractor","Fabricator","Electrician","Transporter"];
 const COLOR={Labour:"--c-labour",Civil:"--c-civil",Subcontractor:"--c-sub",Fabricator:"--c-fab",Electrician:"--c-elec",Transporter:"--c-trans"};
 const $=id=>document.getElementById(id);
-let rows=[], filter="All", q="", db=null, canWrite=true, editing=null, pickCat="Labour", confirmDel=false;
+let store=null, rows=[], filter="All", q="", db=null, canWrite=true, editing=null, pickCat="Labour", confirmDel=false;
 
 const catVar=c=>`var(${COLOR[c]||"--c-other"})`;
 const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
@@ -303,11 +304,11 @@ $("form").addEventListener("submit",async e=>{
   if(!mobile) return showErr("Enter a mobile number.");
   const dup=rows.find(r=>r.id!==editing?.id&&(r.mobile===mobile||r.alt===mobile));
   const data={name,category,trade:$("f-trade").value.trim(),mobile,alt:fmtPhone($("f-alt").value),address:$("f-addr").value.trim(),updatedAt:new Date().toISOString()};
-  if(!db) return showErr("Saving isn't available right now. Reload the page and try again.");
+  if(!store) return showErr("Saving isn't available right now. Reload the page and try again.");
   $("save").disabled=true;
   try{
-    if(editing){await db.collection(COLLECTION).doc(editing.id).set({...data,createdAt:editing.createdAt||data.updatedAt});toast("Saved");}
-    else{await db.collection(COLLECTION).add({...data,createdAt:data.updatedAt});toast(dup?`Added — note: same number as ${dup.name}`:"Added");}
+    if(editing){await store.set(editing.id,{...data,createdAt:editing.createdAt||data.updatedAt});toast("Saved");}
+    else{await store.add({...data,createdAt:data.updatedAt});toast(dup?`Added — note: same number as ${dup.name}`:"Added");}
     closeForm();
   }catch(err){
     showErr(err&&err.code==="permission-denied"?"Firestore refused the save. Check the database rules (see README).":"Couldn't save. Check your connection and try again.");
@@ -317,7 +318,7 @@ $("del").addEventListener("click",async()=>{
   if(!editing) return;
   if(!confirmDel){confirmDel=true;$("pinWrap").hidden=false;$("f-pin").value="";$("f-pin").focus();$("del").textContent="Confirm delete";return;}
   if($("f-pin").value.trim()!==DELETE_PIN){showErr("Wrong PIN. Only the admin can delete contacts.");return;}
-  try{await db.collection(COLLECTION).doc(editing.id).delete();toast("Deleted");closeForm();}
+  try{await store.del(editing.id);toast("Deleted");closeForm();}
   catch(_){showErr("Couldn't delete. Try again.");}
 });
 
@@ -369,22 +370,39 @@ function applyRO(){$("add").hidden=!canWrite;$("ro").hidden=canWrite;render();}
 
 render();
 (function boot(){
-  if(!window.firebase){$("out").innerHTML='<div class="empty">Couldn\'t load the database. Check your internet and reload.</div>';$("add").hidden=true;return;}
-  if(FIREBASE_CONFIG.apiKey.startsWith("PASTE")){$("out").innerHTML='<div class="empty">Setup needed: paste your Firebase apiKey into FIREBASE_CONFIG in index.html.</div>';$("add").hidden=true;return;}
-  firebase.initializeApp(FIREBASE_CONFIG);
-  db=firebase.firestore();
+  const LS="entrix_workforce_contacts";
+  const lsGet=()=>{try{const v=JSON.parse(localStorage.getItem(LS));return Array.isArray(v)?v:null;}catch(_){return null;}};
+  const lsPut=a=>{try{localStorage.setItem(LS,JSON.stringify(a));}catch(_){}};
+  const now=()=>new Date().toISOString();
+  function localMode(){
+    rows=lsGet()||SEED.map(r=>({...r,createdAt:now(),updatedAt:now()}));
+    lsPut(rows);
+    store={
+      set:async(id,d)=>{rows=rows.map(r=>r.id===id?{id,...d}:r);lsPut(rows);render();},
+      add:async d=>{rows=rows.concat({id:"c"+Date.now().toString(36),...d});lsPut(rows);render();},
+      del:async id=>{rows=rows.filter(r=>r.id!==id);lsPut(rows);render();}
+    };
+    $("localNote").hidden=false; applyRO();
+  }
+  if(!window.firebase||FIREBASE_CONFIG.apiKey.startsWith("PASTE")){localMode();return;}
+  try{firebase.initializeApp(FIREBASE_CONFIG);db=firebase.firestore();}catch(_){localMode();return;}
   try{db.enablePersistence({synchronizeTabs:true}).catch(()=>{});}catch(_){}
+  const col=db.collection(COLLECTION);
+  store={set:(id,d)=>col.doc(id).set(d),add:d=>col.add(d),del:id=>col.doc(id).delete()};
   applyRO();
   let seeded=false;
-  db.collection(COLLECTION).onSnapshot({includeMetadataChanges:false},snap=>{
+  col.onSnapshot(snap=>{
     if(snap.empty&&!snap.metadata.fromCache&&!seeded){
-      seeded=true;const b=db.batch();const now=new Date().toISOString();
-      SEED.forEach(({id,...d})=>b.set(db.collection(COLLECTION).doc(id),{...d,createdAt:now,updatedAt:now}));
+      seeded=true;const b=db.batch();const local=lsGet();
+      (local||SEED).forEach(({id,...d})=>b.set(col.doc(id),{createdAt:now(),updatedAt:now(),...d}));
       b.commit().catch(()=>{});return;
     }
     rows=snap.docs.map(s=>({id:s.id,...s.data()}));
     render();
-  },err=>{$("out").innerHTML='<div class="empty">'+(err&&err.code==="permission-denied"?"The database refused access. Update the Firestore rules (see README).":"The list stopped updating. Reload the page.")+'</div>';});
+  },err=>{
+    if(err&&err.code==="permission-denied"){toast("Online database refused access — using this phone only");localMode();}
+    else $("out").innerHTML='<div class="empty">The list stopped updating. Reload the page.</div>';
+  });
 })();
 })();
 </script>
