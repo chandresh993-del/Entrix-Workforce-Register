@@ -1,0 +1,877 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1f4e78">
+<title>ENTRIX Contact Register</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}
+/* Layout: login card → sticky header (search, category tabs) → sectioned contact cards; bottom sheets for forms */
+:root{
+  --bg:#f3f5f7; --surface:#ffffff; --fg:#17212b; --muted:#5d6b78; --line:#d8dee4;
+  --brand:#1f4e78; --brand-fg:#ffffff; --accent:#e8a317; --danger:#b42318; --ok:#1f7a3f; --chip:#e7edf3;
+  --c-labour:#2e75b6; --c-civil:#8a6a00; --c-sub:#4f7d2e; --c-fab:#c55a11; --c-elec:#7a3fb0; --c-trans:#4a5560;
+  --c-supp:#a3324a; --c-cust:#0f7c8c; --c-other:#3d7a7a;
+  --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f151b; --surface:#18212a; --fg:#e6ecf1; --muted:#9aa8b5; --line:#2a3642;
+  --brand:#16324d; --brand-fg:#ffffff; --accent:#f0b43a; --danger:#f97066; --ok:#4cc27a; --chip:#22303d;
+  --c-labour:#5b9ee0; --c-civil:#d1a933; --c-sub:#7fb556; --c-fab:#f08a45; --c-elec:#b183e0; --c-trans:#9aa7b3;
+  --c-supp:#e06a83; --c-cust:#3cc0d0; --c-other:#6cb8b8;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f151b; --surface:#18212a; --fg:#e6ecf1; --muted:#9aa8b5; --line:#2a3642;
+  --brand:#16324d; --brand-fg:#ffffff; --accent:#f0b43a; --danger:#f97066; --ok:#4cc27a; --chip:#22303d;
+  --c-labour:#5b9ee0; --c-civil:#d1a933; --c-sub:#7fb556; --c-fab:#f08a45; --c-elec:#b183e0; --c-trans:#9aa7b3;
+  --c-supp:#e06a83; --c-cust:#3cc0d0; --c-other:#6cb8b8;
+  color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.45}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--brand)}
+.wrap{max-width:860px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+/* login */
+.login{min-height:100vh;display:grid;place-items:center;background:var(--brand);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px}
+.login form{background:var(--surface);width:100%;max-width:380px;border-radius:14px;padding:22px 20px;display:grid;gap:14px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+.login h1{color:var(--fg)}
+.login h1 small{color:var(--muted);opacity:1}
+.login .hint{font-size:13px;color:var(--muted);margin:0}
+
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--brand);color:var(--brand-fg);box-shadow:0 2px 8px rgba(0,0,0,.15)}
+header .wrap{padding-block:12px 10px;display:grid;gap:10px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+h1{font-family:var(--display);font-weight:700;font-size:26px;letter-spacing:.02em;margin:0;line-height:1;text-transform:uppercase}
+h1 small{display:block;font-family:var(--body);font-weight:500;font-size:11px;letter-spacing:.12em;opacity:.75;margin-top:4px}
+.acct{display:flex;align-items:center;gap:8px;font:600 13px var(--body);color:var(--brand-fg);background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);padding:6px 10px;border-radius:8px;cursor:pointer;white-space:nowrap;max-width:46vw}
+.acct span{overflow:hidden;text-overflow:ellipsis}
+.acct b{font-family:var(--mono);font-weight:500;font-size:11px;background:var(--accent);color:#1a1300;border-radius:4px;padding:1px 5px}
+.search{width:100%;font:inherit;padding:10px 12px;border-radius:8px;border:0;background:#fff;color:#17212b}
+.search:focus{outline:3px solid var(--accent);outline-offset:0}
+.tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:none;font:600 13px var(--body);color:var(--brand-fg);background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:999px;padding:6px 12px;cursor:pointer;white-space:nowrap}
+.tab b{font-family:var(--mono);font-weight:500;opacity:.8;margin-left:4px}
+.tab[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#1a1300}
+.tab:focus-visible,.acct:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.ownerf{display:flex;align-items:center;gap:8px;font-size:13px}
+.ownerf select{font:500 14px var(--body);padding:6px 8px;border-radius:6px;border:0;background:#fff;color:#17212b;max-width:100%}
+
+main .wrap{padding-block:16px 110px;display:grid;gap:20px}
+.sec{display:grid;gap:8px}
+.sec-h{display:flex;align-items:center;gap:10px;font-family:var(--display);font-weight:700;font-size:20px;text-transform:uppercase;letter-spacing:.04em}
+.sec-h::before{content:"";width:12px;height:12px;border-radius:3px;background:var(--cat)}
+.sec-h span{font-family:var(--mono);font-size:13px;color:var(--muted);font-weight:500}
+.sec-h em{font:500 11px var(--body);letter-spacing:.06em;color:var(--muted);font-style:normal;border:1px solid var(--line);border-radius:4px;padding:1px 6px;text-transform:uppercase}
+.list{display:grid;gap:8px}
+.card{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--cat);border-radius:8px;padding:12px 14px;display:grid;grid-template-columns:1fr auto;gap:2px 12px;align-items:start}
+.card .nm{font-weight:600;font-size:16px;min-width:0;overflow-wrap:anywhere}
+.card .firm{grid-column:1;font-weight:500;font-size:14px;overflow-wrap:anywhere}
+.card .tr{grid-column:1;color:var(--muted);font-size:13px}
+.card .meta{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:6px;font-size:14px;align-items:center}
+.ph{font-family:var(--mono);font-size:14px;color:var(--fg);background:var(--chip);border:0;border-radius:6px;padding:4px 8px;cursor:pointer}
+.gst{font-family:var(--mono);font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:3px 7px}
+.by{font-size:12px;color:var(--muted)}
+.ph:focus-visible,.btn:focus-visible,.icon:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.addr{color:var(--muted);overflow-wrap:anywhere}
+.icon{font:600 13px var(--body);background:none;border:1px solid var(--line);color:var(--fg);border-radius:6px;padding:5px 10px;cursor:pointer}
+.empty{background:var(--surface);border:1px dashed var(--line);border-radius:8px;padding:24px;text-align:center;color:var(--muted)}
+.fab{position:fixed;right:max(16px,calc(env(safe-area-inset-right,0px) + 16px));bottom:calc(env(safe-area-inset-bottom,0px) + 18px);z-index:6;font:700 16px var(--body);background:var(--accent);color:#1a1300;border:0;border-radius:999px;padding:14px 22px;box-shadow:0 6px 18px rgba(0,0,0,.25);cursor:pointer}
+.fab:focus-visible{outline:3px solid var(--fg);outline-offset:2px}
+.sheet-bg{position:fixed;inset:0;background:rgba(10,15,20,.55);z-index:20;display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--surface);color:var(--fg);width:100%;max-width:560px;max-height:92vh;overflow:auto;border-radius:14px 14px 0 0;padding:18px max(16px,env(safe-area-inset-right,0px)) calc(18px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:grid;gap:12px}
+@media (min-width:600px){.sheet-bg{align-items:center}.sheet{border-radius:14px}}
+.sheet h2{font-family:var(--display);font-size:24px;text-transform:uppercase;margin:0;letter-spacing:.03em}
+.sheet h3{font:600 12px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:6px 0 0}
+label{display:grid;gap:4px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+label i{font-style:normal;font-weight:500;letter-spacing:0;text-transform:none}
+label input{font:400 16px var(--body);letter-spacing:0;text-transform:none;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px;width:100%}
+label input:focus{outline:2px solid var(--accent);border-color:transparent}
+#f-gstin{text-transform:uppercase;font-family:var(--mono)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width:440px){.row2{grid-template-columns:1fr}}
+.cats{display:flex;flex-wrap:wrap;gap:6px}
+.cat{font:600 14px var(--body);border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:999px;padding:7px 12px;cursor:pointer}
+.cat[aria-pressed="true"]{background:var(--cat);border-color:var(--cat);color:#fff}
+.note{font-size:13px;color:var(--muted);margin:0}
+.actions{display:flex;gap:8px;justify-content:space-between;flex-wrap:wrap;margin-top:4px}
+.actions .right{display:flex;gap:8px;margin-left:auto}
+.btn{font:600 15px var(--body);border-radius:8px;padding:10px 16px;cursor:pointer;border:1px solid var(--line);background:var(--bg);color:var(--fg)}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:var(--brand-fg)}
+.btn.danger{color:var(--danger);border-color:var(--danger);background:transparent}
+.btn.block{width:100%}
+.btn[disabled]{opacity:.55;cursor:default}
+.err{color:var(--danger);font-size:14px;margin:0}
+.okmsg{color:var(--ok);font-size:14px;margin:0}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 84px);background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:14px;z-index:30;max-width:90vw;text-align:center}
+.share{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.share .lbl{font-size:13px;color:var(--muted);margin-right:auto}
+.sbtn{display:inline-flex;align-items:center;gap:8px;font:600 14px var(--body);border-radius:8px;padding:9px 14px;cursor:pointer;text-decoration:none;border:1px solid var(--line);background:var(--surface);color:var(--fg)}
+.sbtn svg{width:18px;height:18px;flex:none}
+.sbtn.wa{background:#1fa855;border-color:#1fa855;color:#fff}
+.sbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.sbtn[disabled]{opacity:.5;cursor:default}
+.users{display:grid;gap:6px}
+.urow{display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:9px 12px}
+.urow .un{font-weight:600}
+.urow .ud{font-size:12px;color:var(--muted);font-family:var(--mono)}
+.pill{font:600 12px var(--body);border-radius:999px;padding:5px 10px;cursor:pointer;border:1px solid var(--line);background:var(--bg);color:var(--fg)}
+.pill.on{background:var(--ok);border-color:var(--ok);color:#fff}
+.menu{display:grid;gap:8px}
+.fbar{display:grid;gap:10px}
+.subs{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.subs::-webkit-scrollbar{display:none}
+.stab{flex:none;font:600 13px var(--body);border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:999px;padding:6px 12px;cursor:pointer;white-space:nowrap}
+.stab b{font-family:var(--mono);font-weight:500;color:var(--muted);margin-left:4px}
+.stab[aria-pressed="true"]{background:var(--cat,var(--brand));border-color:var(--cat,var(--brand));color:#fff}
+.stab[aria-pressed="true"] b{color:#fff;opacity:.85}
+.fsel{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+select.inp,label select{font:400 16px var(--body);letter-spacing:0;text-transform:none;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 10px;width:100%}
+.fsel select{background:var(--surface);font-size:15px}
+label select:focus{outline:2px solid var(--accent);border-color:transparent}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:500 13px var(--body);border:1px solid var(--line);border-radius:999px;padding:5px 10px;background:var(--bg);display:inline-flex;align-items:center;gap:6px}
+.chip button{border:0;background:none;color:var(--danger);font:700 15px var(--body);cursor:pointer;padding:0 2px;line-height:1}
+.addrow{display:flex;gap:8px}
+.addrow input{flex:1;min-width:0;font:400 16px var(--body);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 12px}
+.loc{color:var(--fg);font-weight:500}
+@media (prefers-reduced-motion:no-preference){.sheet{animation:up .18s ease-out}@keyframes up{from{transform:translateY(24px);opacity:.6}}}
+.print-only{display:none}
+@media print{
+  header,.share,.fab,.icon,.toast,.sheet-bg,body::before,.login{display:none!important}
+  body{background:#fff!important;color:#000!important;font-size:11pt}
+  .print-only{display:block;text-align:center;margin-bottom:10px}
+  .print-only h2{margin:0;font-size:18pt}.print-only p{margin:2px 0;font-size:9pt}
+  main .wrap{padding:0!important;max-width:none}
+  .sec{break-inside:auto}.card{break-inside:avoid;border-color:#bbb;background:#fff}
+  .ph{background:none;padding:0;color:#000}
+  @page{size:A4;margin:12mm}
+}
+</style>
+</head><body>
+
+<!-- LOGIN -->
+<div class="login" id="loginView" hidden>
+  <form id="loginForm" novalidate>
+    <h1>Contact Register<small>ENTRIX Innovation</small></h1>
+    <label>Username<input id="l-user" autocomplete="username" autocapitalize="none" spellcheck="false"></label>
+    <label>Password<input id="l-pass" type="password" autocomplete="current-password"></label>
+    <p class="err" id="l-err" hidden></p>
+    <button class="btn primary block" type="submit" id="l-btn">Log in</button>
+    <p class="hint">Ask the admin for your username and password.</p>
+  </form>
+</div>
+
+<!-- APP -->
+<div id="appView">
+<header>
+  <div class="wrap">
+    <div class="top">
+      <h1>Contact Register<small>ENTRIX Innovation · Workforce, Suppliers &amp; Customers</small></h1>
+      <button class="acct" id="acctBtn" type="button" aria-label="Settings"><span id="acctName">Settings</span><b id="acctRole" hidden></b></button>
+    </div>
+    <input class="search" id="q" type="search" placeholder="Search name, firm, work, area, mobile or GSTIN" autocomplete="off">
+    <div class="tabs" id="tabs" role="group" aria-label="Filter by category"></div>
+    <label class="ownerf" id="ownerWrap" hidden style="color:var(--brand-fg);text-transform:none;letter-spacing:0;font-weight:500;display:flex">Added by
+      <select id="ownerSel"></select></label>
+  </div>
+</header>
+
+<main><div class="wrap">
+  <div class="print-only"><h2>ENTRIX Innovation — Contact List</h2><p id="printSub"></p></div>
+  <div class="fbar">
+    <div class="subs" id="subTabs" role="group" aria-label="Filter by subcategory" hidden></div>
+    <div class="fsel">
+      <label>City<select id="citySel"></select></label>
+      <label>Area<select id="areaSel"></select></label>
+    </div>
+  </div>
+  <div class="share" id="share">
+    <span class="lbl" id="shareLbl"></span>
+    <a class="sbtn wa" id="wa" href="https://wa.me/" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.7.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.3-.4.8-1.4.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.8 11.9 11.9 0 0 0 4.6 4c1.7.7 2.4.8 3.2.7.5-.1 1.5-.6 1.8-1.2s.2-1.1.1-1.2l-.4-.2z"/></svg>Share on WhatsApp</a>
+    <button class="sbtn" id="pdf" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Print</button>
+    <button class="sbtn" id="pdfdl" type="button">Save PDF</button>
+  </div>
+  <div id="out" style="display:grid;gap:20px"><div class="empty">Loading contacts…</div></div>
+</div></main>
+
+<button class="fab" id="add" type="button">+ Add contact</button>
+</div>
+
+<!-- CONTACT FORM -->
+<div class="sheet-bg" id="sheetBg" hidden>
+  <form class="sheet" id="form" novalidate>
+    <h2 id="formTitle">Add contact</h2>
+    <div>
+      <label style="margin-bottom:6px">Category</label>
+      <div class="cats" id="catPick"></div>
+      <label style="margin-top:8px" id="newCatWrap" hidden>New category name<input id="f-newcat" autocomplete="off" placeholder="e.g. Painter"></label>
+      <p class="note" id="privNote" style="margin-top:8px" hidden>Customers you add are visible only to you and the admin.</p>
+    </div>
+    <label>Contact person name<input id="f-name" required autocomplete="off"></label>
+    <label><span>Firm name <i>(optional)</i></span><input id="f-firm" autocomplete="off" placeholder="e.g. Shree Steel Traders"></label>
+    <div style="display:grid;gap:6px">
+      <label>Subcategory / Work type<select id="f-sub"></select></label>
+      <label id="newSubWrap" hidden>New subcategory name<input id="f-newsub" autocomplete="off" placeholder="e.g. TMT Bar Binding"></label>
+    </div>
+    <label><span>Work details <i>(optional)</i></span><input id="f-trade" autocomplete="off" placeholder="e.g. 10 men team, does slab work"></label>
+    <div class="row2">
+      <label>Mobile No.<input id="f-mobile" type="tel" inputmode="tel" autocomplete="off" placeholder="+91 98765 43210"></label>
+      <label><span>Alternate No. <i>(optional)</i></span><input id="f-alt" type="tel" inputmode="tel" autocomplete="off"></label>
+    </div>
+    <label><span>GSTIN <i>(optional)</i></span><input id="f-gstin" autocomplete="off" autocapitalize="characters" maxlength="15" placeholder="27ABCDE1234F1Z5"></label>
+    <div class="row2">
+      <div style="display:grid;gap:6px">
+        <label>City<select id="f-city"></select></label>
+        <label id="newCityWrap" hidden>New city name<input id="f-newcity" autocomplete="off" placeholder="e.g. Wardha"></label>
+      </div>
+      <div style="display:grid;gap:6px">
+        <label>Area<select id="f-area"></select></label>
+        <label id="newAreaWrap" hidden>New area name<input id="f-newarea" autocomplete="off" placeholder="e.g. Hingna MIDC"></label>
+      </div>
+    </div>
+    <label><span>Full address <i>(optional)</i></span><input id="f-addr" autocomplete="off" placeholder="e.g. Plot 12, near Water Tank"></label>
+    <p class="err" id="err" hidden></p>
+    <div class="actions">
+      <button class="btn danger" type="button" id="del" hidden>Delete</button>
+      <div class="right">
+        <button class="btn" type="button" id="cancel">Cancel</button>
+        <button class="btn primary" type="submit" id="save">Save</button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<!-- ACCOUNT SHEET -->
+<div class="sheet-bg" id="acctBg" hidden>
+  <div class="sheet">
+    <h2>Settings</h2>
+    <p class="note" id="acctInfo"></p>
+    <div class="menu">
+      <button class="btn block" type="button" id="openUsers" hidden>Manage salespeople</button>
+      <button class="btn block" type="button" id="openLists" hidden>Manage subcategories &amp; areas</button>
+      <button class="btn block" type="button" id="openPw" hidden>Change my password</button>
+      <button class="btn danger block" type="button" id="logout" hidden>Log out</button>
+      <button class="btn block" type="button" data-close="acctBg">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- USERS SHEET (admin) -->
+<div class="sheet-bg" id="usersBg" hidden>
+  <form class="sheet" id="userForm" novalidate>
+    <h2>Salespeople</h2>
+    <div class="users" id="userList"><p class="note">No salespeople yet.</p></div>
+    <h3>Add salesperson</h3>
+    <label>Full name<input id="u-name" autocomplete="off" placeholder="e.g. Rahul Deshmukh"></label>
+    <div class="row2">
+      <label>Username<input id="u-user" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="e.g. rahul"></label>
+      <label><span>Password <i>(min 6)</i></span><input id="u-pass" autocomplete="off" placeholder="e.g. rahul@2026"></label>
+    </div>
+    <p class="err" id="u-err" hidden></p>
+    <div id="u-done" hidden style="display:grid;gap:8px">
+      <p class="okmsg" id="u-ok"></p>
+      <a class="sbtn wa" id="u-wa" href="https://wa.me/" target="_blank" rel="noopener" style="justify-content:center">Send login details on WhatsApp</a>
+    </div>
+    <div class="actions"><div class="right">
+      <button class="btn" type="button" data-close="usersBg">Close</button>
+      <button class="btn primary" type="submit" id="u-save">Create login</button>
+    </div></div>
+    <p class="note">To stop someone's access, tap <b>Active</b> to turn it off. Their customers stay in the list for the admin.</p>
+  </form>
+</div>
+
+<!-- LISTS SHEET (admin) -->
+<div class="sheet-bg" id="listsBg" hidden>
+  <div class="sheet">
+    <h2>Subcategories &amp; areas</h2>
+    <h3>Subcategories</h3>
+    <label>Main category<select id="m-cat"></select></label>
+    <div class="chips" id="m-subs"></div>
+    <div class="addrow"><input id="m-newsub" autocomplete="off" placeholder="New subcategory, e.g. Centering Binding"><button class="btn" type="button" id="m-addsub">Add</button></div>
+    <h3>Cities &amp; areas</h3>
+    <label>City<select id="m-city"></select></label>
+    <div class="chips" id="m-areas"></div>
+    <div class="addrow"><input id="m-newarea" autocomplete="off" placeholder="New area in this city"><button class="btn" type="button" id="m-addarea">Add</button></div>
+    <div class="addrow"><input id="m-newcity" autocomplete="off" placeholder="New city, e.g. Wardha"><button class="btn" type="button" id="m-addcity">Add city</button></div>
+    <p class="note">Built-in items stay. Items added later show × so you can remove a wrong spelling.</p>
+    <button class="btn block" type="button" data-close="listsBg">Close</button>
+  </div>
+</div>
+
+<!-- PIN SHEET -->
+<div class="sheet-bg" id="pinBg" hidden>
+  <form class="sheet" id="pinForm" novalidate>
+    <h2>Admin PIN</h2>
+    <label>Enter admin PIN<input id="pin-in" type="password" inputmode="numeric" autocomplete="off"></label>
+    <p class="err" id="pin-err" hidden></p>
+    <div class="actions"><div class="right">
+      <button class="btn" type="button" data-close="pinBg">Cancel</button>
+      <button class="btn primary" type="submit">OK</button>
+    </div></div>
+  </form>
+</div>
+
+<!-- PASSWORD SHEET -->
+<div class="sheet-bg" id="pwBg" hidden>
+  <form class="sheet" id="pwForm" novalidate>
+    <h2>Change password</h2>
+    <label>Current password<input id="p-cur" type="password" autocomplete="current-password"></label>
+    <label><span>New password <i>(min 6)</i></span><input id="p-new" type="password" autocomplete="new-password"></label>
+    <p class="err" id="p-err" hidden></p>
+    <div class="actions"><div class="right">
+      <button class="btn" type="button" data-close="pwBg">Cancel</button>
+      <button class="btn primary" type="submit" id="p-save">Save password</button>
+    </div></div>
+  </form>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+/* ====== SETTINGS ====== */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCyd4AJtguX3werThIF_BSs0GzXDIfJu88",
+  authDomain: "entrix-workforce.firebaseapp.com",
+  projectId: "entrix-workforce",
+  storageBucket: "entrix-workforce.firebasestorage.app",
+  messagingSenderId: "398234425817",
+  appId: "1:398234425817:web:b8f9af853aaa0f57c3a1c8"
+};
+const LOGIN_DOMAIN = "entrix-workforce.app";   // usernames become <username>@entrix-workforce.app
+const ADMIN_USERNAME = "admin";                // admin logs in as "admin"
+const CONTACTS = "workforce_contacts";
+const USERS = "workforce_users";
+const CONFIG = "workforce_config";             // shared subcategory & area lists (doc "lists")
+const ADMIN_PIN = "1234";                     // PIN for deleting contacts and managing lists
+const PRIVATE_CATEGORY = "Customer";           // only the person who added it + admin can see these
+const APP_LINK = "https://chandresh993-del.github.io/ENTRIX-Workforce-Register/";
+/* ====================== */
+</script>
+<script>
+(function(){
+const BASE=["Customer","Raw Material Supplier","Labour","Civil","Subcontractor","Fabricator","Electrician","Transporter"];
+const COLOR={Customer:"--c-cust","Raw Material Supplier":"--c-supp",Labour:"--c-labour",Civil:"--c-civil",Subcontractor:"--c-sub",Fabricator:"--c-fab",Electrician:"--c-elec",Transporter:"--c-trans"};
+const PDFCOL={Customer:[15,124,140],"Raw Material Supplier":[163,50,74],Labour:[46,117,182],Civil:[138,106,0],Subcontractor:[79,125,46],Fabricator:[197,90,17],Electrician:[122,63,176],Transporter:[74,85,96]};
+const ADMIN_EMAIL=ADMIN_USERNAME+"@"+LOGIN_DOMAIN;
+const DEF_SUBS={
+  Customer:["Government / Tender","Builder / Developer","Contractor","Dealer / Distributor","Industry / Factory","Individual"],
+  "Raw Material Supplier":["MS Pipe","MS Sheet / Plate","Angle / Channel / Beam","TMT Bar","Cement","Sand / Aggregate","LED / Driver","Solar Panel","Battery","Cable / Wire","Paint","Hardware / Fasteners","GI / Galvanizing"],
+  Labour:["Helper","All Rounder","Loading / Unloading","Metal Work","Pole Cutting","Painting"],
+  Civil:["TMT Bar Binding","Centering Binding","Pile Hole Making","Civil Mistry","Mason / Brick Work","Plaster Work","Slab / RCC Casting","Excavation","Tile Fitting","Plumbing","Waterproofing","Painting"],
+  Subcontractor:["Civil Contractor","Pole Installation","Civil + Plumbing","All Rounder","Electrical Contractor"],
+  Fabricator:["MS Fabrication","Welding","Gate / Grill","Shed / Structure","Pole Fabrication","Cutting / Bending"],
+  Electrician:["Solar Wiring & Installation","Street Light Installation","House Wiring","Panel Wiring"],
+  Transporter:["Pickup / Tempo","Truck","Trailer","Crane / Hydra","JCB"]
+};
+const DEF_CITIES={Nagpur:["Abhyankar Nagar","Ajni","Ambazari","Amravati Road","Ayodhya Nagar","Bahadura","Bajaj Nagar","Beltarodi","Besa","Bezonbagh","Bhamti","Bhande Plot","Bharatwada","Bidgaon","Borkhedi","Butibori","Butibori MIDC","Chhatrapati Nagar","Chitnis Park","Civil Lines","Congress Nagar","Dabha","Dattawadi","Dawlameti","Dhantoli","Dharampeth","Dighori","Friends Colony","Futala","Gandhibagh","Gandhinagar","Ganeshpeth","Gayatri Nagar","Gittikhadan","Godhni","Gokulpeth","Gondkhairi","Gopal Nagar","Gorewada","Hasanbagh","Hingna","Hingna MIDC","Hingna Road","Hudkeshwar","Indora","Isasani","Itwari","Jafar Nagar","Jaiprakash Nagar","Jaitala","Jaripatka","Kalamna","Kalmeshwar","Kamal Chowk","Kamptee","Kamptee Road","Kapil Nagar","Kapsi","Katol","Katol Road","Khadgaon","Khamla","Khapri","Kharbi","Koradi","Koradi Road","Kuhi","Lakadganj","Lava","Laxmi Nagar","Mahadula","Mahal","Manewada","Manish Nagar","Mankapur","Mauda","Medical Square","Mhalgi Nagar","MIHAN","Mohan Nagar","Mominpura","Nandanvan","Nara","Narendra Nagar","Nari","Narsala","Omkar Nagar","Pachpaoli","Pardi","Parsodi","Pipla","Pratap Nagar","Rajiv Nagar","Ramdaspeth","Rameshwari","Ramtek","Ravi Nagar","Reshimbagh","Sadar","Sakkardara","Saoner","Seminary Hills","Shankar Nagar","Shatabdi Nagar","Shivaji Nagar","Sitabuldi","Somalwada","Sonegaon","Subhash Nagar","Swawlambi Nagar","Takli Sim","Telangkhedi","Temasana","Trimurti Nagar","Umred","Umred Road","Untkhana","Uppalwadi","Vayusena Nagar","Vishwakarma Nagar","Wadi","Wanadongri","Wanjra","Wardha Road","Wardhaman Nagar","Wathoda","Yashodhara Nagar","Zingabai Takali"]};
+const NEW="__new";
+const $=id=>document.getElementById(id);
+let cfg={subs:{},cities:{}}, subF="all", cityF="all", areaF="all";
+let auth=null, db=null, me=null, rows=[], users=[], filter="All", ownerF="all", q="", editing=null, pickCat="Customer", confirmDel=false, unsubs=[], loginMsg="", migrated=false;
+
+const catVar=c=>`var(${COLOR[c]||"--c-other"})`;
+const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+const toEmail=u=>{u=String(u||"").trim().toLowerCase();return u.includes("@")?u:u+"@"+LOGIN_DOMAIN;};
+const nowISO=()=>new Date().toISOString();
+function fmtPhone(v){
+  let d=String(v||"").replace(/[^\d]/g,"");
+  if(!d) return "";
+  if(d.length===12&&d.startsWith("91")) d=d.slice(2);
+  if(d.length===11&&d.startsWith("0")) d=d.slice(1);
+  if(d.length===10) return "+91 "+d.slice(0,5)+" "+d.slice(5);
+  return String(v).trim();
+}
+const GST_RE=/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+function toast(t,ms){const el=$("toast");el.textContent=t;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>el.hidden=true,ms||2000);}
+function cats(){
+  const extra=[...new Set(rows.map(r=>r.category).filter(c=>c&&!BASE.includes(c)))].sort();
+  return BASE.concat(extra);
+}
+const uniqSort=a=>[...new Set(a.map(x=>String(x||"").trim()).filter(Boolean))].sort((x,y)=>x.localeCompare(y));
+const subsFor=c=>uniqSort([...(DEF_SUBS[c]||[]),...((cfg.subs||{})[c]||[]),...rows.filter(r=>r.category===c).map(r=>r.sub)]);
+const cityList=()=>{const l=uniqSort([...Object.keys(DEF_CITIES),...Object.keys(cfg.cities||{}),...rows.map(r=>r.city)]);return ["Nagpur",...l.filter(c=>c!=="Nagpur")];};
+const areasFor=c=>uniqSort([...(DEF_CITIES[c]||[]),...((cfg.cities||{})[c]||[]),...rows.filter(r=>r.city===c).map(r=>r.area)]);
+const isDefSub=(c,v)=>(DEF_SUBS[c]||[]).includes(v);
+const isDefArea=(c,v)=>(DEF_CITIES[c]||[]).includes(v);
+const locText=r=>[r.area,r.city].filter(Boolean).join(", ");
+const addrExtra=r=>{const a=String(r.address||"").trim();if(!a)return "";const known=[r.area,r.city].filter(Boolean).map(x=>x.toLowerCase());
+  return a.split(",").map(p=>p.trim().toLowerCase()).filter(Boolean).every(p=>known.includes(p))?"":a;};
+function cfgSet(obj){return db.collection(CONFIG).doc("lists").set(obj,{merge:true});}
+async function addToList(kind,key,val){
+  const FV=firebase.firestore.FieldValue;
+  if(kind==="subs"){cfg.subs[key]=uniqSort([...(cfg.subs[key]||[]),val]);return cfgSet({subs:{[key]:FV.arrayUnion(val)}});}
+  if(kind==="city"){const had=!!cfg.cities[key];cfg.cities[key]=uniqSort([...(cfg.cities[key]||[]),val]);
+    if(val) return cfgSet({cities:{[key]:FV.arrayUnion(val)}});
+    if(!had) return cfgSet({cities:{[key]:[]}});return;}
+  if(kind==="area"){cfg.cities[key]=uniqSort([...(cfg.cities[key]||[]),val]);return cfgSet({cities:{[key]:FV.arrayUnion(val)}});}
+}
+async function removeFromList(kind,key,val){
+  const FV=firebase.firestore.FieldValue;
+  if(kind==="subs"){cfg.subs[key]=(cfg.subs[key]||[]).filter(x=>x!==val);return cfgSet({subs:{[key]:FV.arrayRemove(val)}});}
+  cfg.cities[key]=(cfg.cities[key]||[]).filter(x=>x!==val);return cfgSet({cities:{[key]:FV.arrayRemove(val)}});
+}
+function opts(list,sel,first,addLabel){
+  return `<option value="">${esc(first)}</option>`+list.map(v=>`<option value="${esc(v)}"${v===sel?" selected":""}>${esc(v)}</option>`).join("")+(addLabel?`<option value="${NEW}"${sel===NEW?" selected":""}>${esc(addLabel)}</option>`:"");
+}
+const canEdit=r=>me&&(me.isAdmin||r.ownerUid===me.uid);
+const ownerName=r=>{if(r.ownerUid&&me&&r.ownerUid===me.uid)return "you";const u=users.find(x=>x.id===r.ownerUid);return u?u.name:(r.ownerName||"Admin");};
+
+/* ---------- list ---------- */
+function baseRows(){
+  let r=me&&me.isAdmin&&ownerF!=="all"?rows.filter(x=>(x.ownerUid||"")===ownerF):rows;
+  if(cityF!=="all") r=r.filter(x=>(x.city||"")===cityF);
+  if(cityF!=="all"&&areaF!=="all") r=r.filter(x=>(x.area||"")===areaF);
+  return r;
+}
+const subOk=r=>filter==="All"||subF==="all"||(r.sub||"")===subF;
+function match(r){
+  if(!q) return true;
+  const hay=[r.name,r.firm,r.gstin,r.sub,r.trade,r.mobile,r.alt,r.city,r.area,r.address,r.category].join(" ").toLowerCase();
+  const qd=q.replace(/[^\d]/g,"");
+  return hay.includes(q)||(qd.length>=3&&hay.replace(/[^\d]/g,"").includes(qd));
+}
+const byItem=(a,b)=>(a.sub||"~").localeCompare(b.sub||"~")||(a.name||"").localeCompare(b.name||"");
+function visibleGroups(){
+  const src=baseRows(), show=(filter==="All"?cats():[filter]);
+  return show.map(c=>[c,src.filter(r=>r.category===c&&subOk(r)&&match(r)).sort(byItem)]).filter(g=>g[1].length);
+}
+function scopeLabel(){
+  let s=filter==="All"?"All categories":filter+(subF!=="all"?" › "+subF:"");
+  if(cityF!=="all") s+=" · "+(areaF!=="all"?areaF+", ":"")+cityF;
+  if(me&&me.isAdmin&&ownerF!=="all"){const u=users.find(x=>x.id===ownerF);s+=" · added by "+(ownerF===me.uid?"Admin":(u?u.name:"—"));}
+  if(q) s+=` · search “${q}”`;
+  return s;
+}
+function renderTabs(){
+  const src=baseRows(), counts={};src.forEach(r=>counts[r.category]=(counts[r.category]||0)+1);
+  $("tabs").innerHTML=["All",...cats()].map(c=>`<button class="tab" type="button" data-c="${esc(c)}" aria-pressed="${c===filter}">${esc(c)}<b>${c==="All"?src.length:(counts[c]||0)}</b></button>`).join("");
+}
+function render(){
+  if(!me) return;
+  renderTabs();
+  const src=baseRows(), show=(filter==="All"?cats():[filter]);
+  let html="",any=false;
+  for(const c of show){
+    const items=src.filter(r=>r.category===c&&subOk(r)&&match(r)).sort(byItem);
+    if(!items.length&&(filter==="All"||q||cityF!=="all"||subF!=="all")) continue;
+    any=true;
+    html+=`<section class="sec" style="--cat:${catVar(c)}"><div class="sec-h">${esc(c)}<span>${items.length}</span>${c===PRIVATE_CATEGORY&&!me.isAdmin?"<em>Only you</em>":""}</div><div class="list">`;
+    if(!items.length) html+=`<div class="empty">No ${esc(c.toLowerCase())} contacts yet. Tap <b>+ Add contact</b> to add one.</div>`;
+    for(const r of items){
+      html+=`<article class="card" style="--cat:${catVar(c)}">
+        <div class="nm">${esc(r.name)}</div>
+        ${canEdit(r)?`<button class="icon" type="button" data-edit="${esc(r.id)}">Edit</button>`:"<span></span>"}
+        ${r.firm?`<div class="firm">${esc(r.firm)}</div>`:""}
+        ${r.sub||r.trade?`<div class="tr">${esc([r.sub,r.trade].filter(Boolean).join(" · "))}</div>`:""}
+        <div class="meta">
+          ${r.mobile?`<button class="ph" type="button" data-copy="${esc(r.mobile)}" title="Copy number">${esc(r.mobile)}</button>`:""}
+          ${r.alt?`<button class="ph" type="button" data-copy="${esc(r.alt)}" title="Copy number">${esc(r.alt)}</button>`:""}
+          ${r.gstin?`<span class="gst">GSTIN ${esc(r.gstin)}</span>`:""}
+          ${locText(r)?`<span class="loc">${esc(locText(r))}</span>`:""}
+          ${addrExtra(r)?`<span class="addr">${esc(addrExtra(r))}</span>`:""}
+        </div></article>`;
+    }
+    html+=`</div></section>`;
+  }
+  if(!any) html=src.length||cityF!=="all"?`<div class="empty">No contacts match these filters.</div>`:`<div class="empty">No contacts yet. Tap <b>+ Add contact</b> to add the first one.</div>`;
+  $("out").innerHTML=html;
+  renderFilters();
+  updateShare();
+}
+function waText(){
+  const g=visibleGroups(), n=g.reduce((t,x)=>t+x[1].length,0);
+  let t=`*ENTRIX Innovation – Contact List*\n${scopeLabel()} · ${n} contacts\n`;
+  for(const [c,items] of g){
+    t+=`\n*${c.toUpperCase()} (${items.length})*\n`;
+    items.forEach((r,i)=>{
+      const w=[r.sub,r.trade].filter(Boolean).join(", ");
+      t+=`${i+1}. ${r.name}${r.firm?` (${r.firm})`:""}${w?` – ${w}`:""}\n   📞 ${r.mobile}${r.alt?` / ${r.alt}`:""}`;
+      if(locText(r)) t+=`\n   📍 ${locText(r)}${addrExtra(r)?` – ${addrExtra(r)}`:""}`;
+      if(r.gstin) t+=`\n   GSTIN: ${r.gstin}`;
+      else if(r.address) t+=`\n   📍 ${r.address}`;
+      t+="\n";
+    });
+  }
+  return t;
+}
+function updateShare(){
+  const n=visibleGroups().reduce((t,x)=>t+x[1].length,0);
+  $("shareLbl").textContent=`${scopeLabel()} · ${n} ${n===1?"contact":"contacts"}`;
+  $("wa").href="https://wa.me/?text="+encodeURIComponent(waText());
+  $("pdf").disabled=!n;$("pdfdl").disabled=!n;
+}
+function renderFilters(){
+  // subcategory chips for the selected main category
+  if(filter==="All"){$("subTabs").hidden=true;subF="all";}
+  else{
+    const src=baseRows().filter(r=>r.category===filter&&match(r)), cnt={};
+    src.forEach(r=>{const k=r.sub||"";cnt[k]=(cnt[k]||0)+1;});
+    const list=subsFor(filter).filter(v=>cnt[v]);
+    if(subF!=="all"&&!list.includes(subF)&&subF!=="") subF="all";
+    $("subTabs").style.setProperty("--cat",catVar(filter));
+    $("subTabs").innerHTML=`<button class="stab" type="button" data-s="all" aria-pressed="${subF==="all"}">All ${esc(filter)}<b>${src.length}</b></button>`+
+      list.map(v=>`<button class="stab" type="button" data-s="${esc(v)}" aria-pressed="${subF===v}">${esc(v)}<b>${cnt[v]}</b></button>`).join("")+
+      (cnt[""]?`<button class="stab" type="button" data-s="" aria-pressed="${subF===""}">Not set<b>${cnt[""]}</b></button>`:"");
+    $("subTabs").hidden=false;
+  }
+  // city / area selects
+  const cities=cityList();
+  if(cityF!=="all"&&!cities.includes(cityF)) cityF="all";
+  $("citySel").innerHTML=`<option value="all">All cities</option>`+cities.map(c=>`<option value="${esc(c)}"${c===cityF?" selected":""}>${esc(c)}</option>`).join("");
+  if(cityF==="all"){areaF="all";$("areaSel").innerHTML=`<option value="all">Pick a city first</option>`;$("areaSel").disabled=true;}
+  else{
+    const inCity=rows.filter(r=>(r.city||"")===cityF), cnt={};inCity.forEach(r=>{if(r.area)cnt[r.area]=(cnt[r.area]||0)+1;});
+    const areas=areasFor(cityF);
+    $("areaSel").disabled=false;
+    $("areaSel").innerHTML=`<option value="all">All areas</option>`+areas.map(a=>`<option value="${esc(a)}"${a===areaF?" selected":""}>${esc(a)}${cnt[a]?` (${cnt[a]})`:""}</option>`).join("");
+  }
+}
+function renderOwnerFilter(){
+  if(true){$("ownerWrap").hidden=true;return;}
+  $("ownerWrap").hidden=false;
+  const opts=[["all","Everyone"],[me.uid,"Admin"],...users.map(u=>[u.id,u.name+(u.active?"":" (off)")])];
+  if(!opts.some(o=>o[0]===ownerF)) ownerF="all";
+  $("ownerSel").innerHTML=opts.map(([v,l])=>`<option value="${esc(v)}"${v===ownerF?" selected":""}>${esc(l)}</option>`).join("");
+}
+
+$("tabs").addEventListener("click",e=>{const b=e.target.closest(".tab");if(!b)return;filter=b.dataset.c;subF="all";render();window.scrollTo({top:0});});
+$("subTabs").addEventListener("click",e=>{const b=e.target.closest(".stab");if(!b)return;subF=b.dataset.s;render();});
+$("citySel").addEventListener("change",e=>{cityF=e.target.value;areaF="all";render();});
+$("areaSel").addEventListener("change",e=>{areaF=e.target.value;render();});
+$("q").addEventListener("input",e=>{q=e.target.value.trim().toLowerCase();render();});
+$("ownerSel").addEventListener("change",e=>{ownerF=e.target.value;render();});
+$("out").addEventListener("click",async e=>{
+  const c=e.target.closest("[data-copy]");
+  if(c){try{await navigator.clipboard.writeText(c.dataset.copy);toast("Number copied");}catch(_){const s=getSelection(),rg=document.createRange();rg.selectNodeContents(c);s.removeAllRanges();s.addRange(rg);toast("Number selected — copy it");}return;}
+  const ed=e.target.closest("[data-edit]");
+  if(ed) openForm(rows.find(r=>r.id===ed.dataset.edit));
+});
+
+/* ---------- sheets ---------- */
+function openSheet(id){$(id).hidden=false;}
+function closeSheet(id){$(id).hidden=true;if(id==="sheetBg")editing=null;}
+document.querySelectorAll(".sheet-bg").forEach(bg=>bg.addEventListener("click",e=>{if(e.target===bg)closeSheet(bg.id);}));
+document.addEventListener("click",e=>{const b=e.target.closest("[data-close]");if(b)closeSheet(b.dataset.close);});
+document.addEventListener("keydown",e=>{if(e.key==="Escape")document.querySelectorAll(".sheet-bg:not([hidden])").forEach(bg=>closeSheet(bg.id));});
+
+/* ---------- contact form ---------- */
+function renderCatPick(){
+  $("catPick").innerHTML=cats().concat(["+ New"]).map(c=>`<button type="button" class="cat" data-c="${esc(c)}" style="--cat:${c==="+ New"?"var(--brand)":catVar(c)}" aria-pressed="${c===pickCat}">${esc(c)}</button>`).join("");
+  $("newCatWrap").hidden=pickCat!=="+ New";
+  $("privNote").hidden=!(pickCat===PRIVATE_CATEGORY&&!me.isAdmin);
+}
+function renderSubSel(sel){
+  const c=pickCat===NEW||pickCat==="+ New"?"":pickCat;
+  $("f-sub").innerHTML=opts(c?subsFor(c):[],sel,"— Select work type —","+ Add new subcategory…");
+  $("newSubWrap").hidden=$("f-sub").value!==NEW;
+}
+function renderCitySel(sel){
+  $("f-city").innerHTML=opts(cityList(),sel,"— Select city —","+ Add new city…");
+  $("newCityWrap").hidden=$("f-city").value!==NEW;
+}
+function renderAreaSel(sel){
+  const c=$("f-city").value;
+  $("f-area").innerHTML=opts(c&&c!==NEW?areasFor(c):[],sel,c?"— Select area —":"Pick a city first","+ Add new area…");
+  $("newAreaWrap").hidden=$("f-area").value!==NEW;
+}
+$("f-sub").addEventListener("change",()=>{$("newSubWrap").hidden=$("f-sub").value!==NEW;if(!$("newSubWrap").hidden)$("f-newsub").focus();});
+$("f-city").addEventListener("change",()=>{$("newCityWrap").hidden=$("f-city").value!==NEW;renderAreaSel($("f-city").value===NEW?NEW:"");if(!$("newCityWrap").hidden)$("f-newcity").focus();});
+$("f-area").addEventListener("change",()=>{$("newAreaWrap").hidden=$("f-area").value!==NEW;if(!$("newAreaWrap").hidden)$("f-newarea").focus();});
+$("catPick").addEventListener("click",e=>{const b=e.target.closest(".cat");if(!b)return;pickCat=b.dataset.c;renderCatPick();renderSubSel("");if(pickCat==="+ New")$("f-newcat").focus();});
+function showErr(id,t){$(id).textContent=t;$(id).hidden=!t;}
+function openForm(r){
+  editing=r||null;confirmDel=false;
+  $("formTitle").textContent=r?"Edit contact":"Add contact";
+  for(const [f,k] of [["f-name","name"],["f-firm","firm"],["f-trade","trade"],["f-mobile","mobile"],["f-alt","alt"],["f-gstin","gstin"],["f-addr","address"]]) $(f).value=r?.[k]||"";
+  $("f-newcat").value="";$("f-newsub").value="";$("f-newcity").value="";$("f-newarea").value="";
+  pickCat=r?.category||(filter!=="All"?filter:(me.isAdmin?"Labour":"Customer"));
+  $("del").hidden=!(r&&me.isAdmin);$("del").textContent="Delete";showErr("err","");
+  renderCatPick();
+  renderSubSel(r?.sub||(filter!=="All"&&subF!=="all"&&!r?subF:""));
+  renderCitySel(r?(r.city||""):(cityF!=="all"?cityF:"Nagpur"));
+  renderAreaSel(r?(r.area||""):(areaF!=="all"?areaF:""));
+  openSheet("sheetBg");setTimeout(()=>$("f-name").focus(),50);
+}
+$("add").addEventListener("click",()=>openForm(null));
+$("cancel").addEventListener("click",()=>closeSheet("sheetBg"));
+$("form").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const name=$("f-name").value.trim();
+  let category=pickCat==="+ New"?$("f-newcat").value.trim():pickCat;
+  if(category) category=category.charAt(0).toUpperCase()+category.slice(1);
+  const mobile=fmtPhone($("f-mobile").value);
+  const gstin=$("f-gstin").value.replace(/\s/g,"").toUpperCase();
+  if(!name) return showErr("err","Enter the contact person's name.");
+  if(!category) return showErr("err","Type a name for the new category.");
+  if(!mobile) return showErr("err","Enter a mobile number.");
+  const pick=(selId,newId)=>{const v=$(selId).value;return v===NEW?$(newId).value.trim():v;};
+  const sub=pick("f-sub","f-newsub"), city=pick("f-city","f-newcity"), area=pick("f-area","f-newarea");
+  if($("f-sub").value===NEW&&!sub) return showErr("err","Type the new subcategory name, or pick one from the list.");
+  if($("f-city").value===NEW&&!city) return showErr("err","Type the new city name, or pick one from the list.");
+  if($("f-area").value===NEW&&!area) return showErr("err","Type the new area name, or pick one from the list.");
+  if(area&&!city) return showErr("err","Pick the city for this area.");
+  if(gstin&&!GST_RE.test(gstin)) return showErr("err","GSTIN doesn't look right. It should be 15 characters, like 27ABCDE1234F1Z5. Leave it blank if you don't have it.");
+  const dup=rows.find(r=>r.id!==editing?.id&&(r.mobile===mobile||r.alt===mobile));
+  const data={name,firm:$("f-firm").value.trim(),category,sub,city,area,trade:$("f-trade").value.trim(),mobile,alt:fmtPhone($("f-alt").value),gstin,address:$("f-addr").value.trim(),
+    private:category===PRIVATE_CATEGORY,updatedAt:nowISO(),
+    ownerUid:editing?(editing.ownerUid||me.uid):me.uid, ownerName:editing?(editing.ownerName||me.name):me.name,
+    createdAt:editing?.createdAt||nowISO()};
+  $("save").disabled=true;
+  try{
+    if(editing){await db.collection(CONTACTS).doc(editing.id).set(data);toast("Saved");}
+    else{await db.collection(CONTACTS).add(data);toast(dup?`Added — note: same number as ${dup.name}`:"Added",dup?3500:2000);}
+    closeSheet("sheetBg");
+    // remember new list items for everyone
+    try{
+      if(sub&&!isDefSub(category,sub)&&!((cfg.subs||{})[category]||[]).includes(sub)) await addToList("subs",category,sub);
+      const known=(cfg.cities||{})[city];
+      if(city&&!DEF_CITIES[city]&&!known) await addToList("city",city,area||"");
+      else if(area&&!isDefArea(city,area)&&!(known||[]).includes(area)) await addToList("area",city,area);
+    }catch(_){}
+  }catch(err){
+    showErr("err",err&&err.code==="permission-denied"?"You can't change this contact. Only the person who added it or the admin can.":"Couldn't save. Check your internet and try again.");
+  }finally{$("save").disabled=false;}
+});
+$("del").addEventListener("click",async()=>{
+  if(!editing) return;
+  pinThen(async()=>{
+    if(!confirmDel){confirmDel=true;$("del").textContent="Tap again to delete";return;}
+    try{await db.collection(CONTACTS).doc(editing.id).delete();toast("Deleted");closeSheet("sheetBg");}
+    catch(_){showErr("err","Couldn't delete. Try again.");}
+  });
+});
+
+/* ---------- admin PIN (stays unlocked 10 minutes) ---------- */
+let unlockedUntil=0, pinNext=null;
+function pinThen(fn){
+  if(Date.now()<unlockedUntil) return fn();
+  pinNext=fn;$("pin-in").value="";showErr("pin-err","");openSheet("pinBg");setTimeout(()=>$("pin-in").focus(),50);
+}
+$("pinForm").addEventListener("submit",e=>{
+  e.preventDefault();
+  if($("pin-in").value.trim()!==ADMIN_PIN) return showErr("pin-err","Wrong PIN.");
+  unlockedUntil=Date.now()+10*60*1000;closeSheet("pinBg");const f=pinNext;pinNext=null;if(f)f();
+});
+
+/* ---------- account / users / password ---------- */
+$("acctBtn").addEventListener("click",()=>{
+  $("acctInfo").textContent="Anyone with the link can add and edit contacts. Deleting and managing lists need the admin PIN.";
+  $("openUsers").hidden=true;$("openLists").hidden=false;openSheet("acctBg");
+});
+$("logout").addEventListener("click",async()=>{closeSheet("acctBg");await auth.signOut();});
+$("openLists").addEventListener("click",()=>{closeSheet("acctBg");pinThen(openLists);});
+function openLists(){
+  $("m-cat").innerHTML=cats().map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join("");
+  if(filter!=="All") $("m-cat").value=filter;
+  renderListsCities(cityF!=="all"?cityF:"Nagpur");renderListsSubs();renderListsAreas();openSheet("listsBg");}
+function renderListsCities(sel){$("m-city").innerHTML=cityList().map(c=>`<option value="${esc(c)}"${c===sel?" selected":""}>${esc(c)}</option>`).join("");}
+function renderListsSubs(){
+  const c=$("m-cat").value;
+  $("m-subs").innerHTML=subsFor(c).map(v=>`<span class="chip">${esc(v)}${isDefSub(c,v)?"":`<button type="button" aria-label="Remove ${esc(v)}" data-rmsub="${esc(v)}">×</button>`}</span>`).join("")||`<p class="note">No subcategories yet.</p>`;
+}
+function renderListsAreas(){
+  const c=$("m-city").value;
+  $("m-areas").innerHTML=areasFor(c).map(v=>`<span class="chip">${esc(v)}${isDefArea(c,v)?"":`<button type="button" aria-label="Remove ${esc(v)}" data-rmarea="${esc(v)}">×</button>`}</span>`).join("")||`<p class="note">No areas yet. Add the first one below.</p>`;
+}
+$("m-cat").addEventListener("change",renderListsSubs);
+$("m-city").addEventListener("change",renderListsAreas);
+async function listAction(fn,msg){try{await fn();toast(msg);}catch(_){toast("Couldn't save. Check your internet and try again.");}renderListsSubs();renderListsAreas();render();}
+$("m-addsub").addEventListener("click",()=>{const v=$("m-newsub").value.trim();if(!v)return;$("m-newsub").value="";listAction(()=>addToList("subs",$("m-cat").value,v),`Added “${v}”`);});
+$("m-addarea").addEventListener("click",()=>{const v=$("m-newarea").value.trim();if(!v)return;$("m-newarea").value="";listAction(()=>addToList("area",$("m-city").value,v),`Added “${v}”`);});
+$("m-addcity").addEventListener("click",()=>{const v=$("m-newcity").value.trim();if(!v)return;$("m-newcity").value="";listAction(async()=>{await addToList("city",v,"");renderListsCities(v);},`Added city “${v}”`);});
+$("m-subs").addEventListener("click",e=>{const b=e.target.closest("[data-rmsub]");if(!b)return;const v=b.dataset.rmsub;
+  if(rows.some(r=>r.category===$("m-cat").value&&r.sub===v)){toast("Some contacts still use this subcategory. Change them first.",3000);return;}
+  listAction(()=>removeFromList("subs",$("m-cat").value,v),`Removed “${v}”`);});
+$("m-areas").addEventListener("click",e=>{const b=e.target.closest("[data-rmarea]");if(!b)return;const v=b.dataset.rmarea;
+  if(rows.some(r=>r.city===$("m-city").value&&r.area===v)){toast("Some contacts still use this area. Change them first.",3000);return;}
+  listAction(()=>removeFromList("area",$("m-city").value,v),`Removed “${v}”`);});
+$("openPw").addEventListener("click",()=>{closeSheet("acctBg");$("p-cur").value="";$("p-new").value="";showErr("p-err","");openSheet("pwBg");setTimeout(()=>$("p-cur").focus(),50);});
+$("pwForm").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const cur=$("p-cur").value,nw=$("p-new").value;
+  if(nw.length<6) return showErr("p-err","New password must be at least 6 characters.");
+  $("p-save").disabled=true;
+  try{
+    const u=auth.currentUser;
+    await u.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(u.email,cur));
+    await u.updatePassword(nw);
+    closeSheet("pwBg");toast("Password changed");
+  }catch(err){
+    const c=err&&err.code||"";
+    showErr("p-err",/wrong-password|invalid-credential|invalid-login/.test(c)?"Current password is wrong.":c==="auth/weak-password"?"Choose a stronger password (at least 6 characters).":"Couldn't change the password. Check your internet and try again.");
+  }finally{$("p-save").disabled=false;}
+});
+$("openUsers").addEventListener("click",()=>{closeSheet("acctBg");["u-name","u-user","u-pass"].forEach(i=>$(i).value="");showErr("u-err","");$("u-done").hidden=true;renderUsers();openSheet("usersBg");});
+function renderUsers(){
+  const cnt={};rows.forEach(r=>{if(r.ownerUid)cnt[r.ownerUid]=(cnt[r.ownerUid]||0)+1;});
+  $("userList").innerHTML=users.length?users.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(u=>`<div class="urow">
+    <div><div class="un">${esc(u.name)}</div><div class="ud">${esc(u.username)} · ${cnt[u.id]||0} contacts</div></div>
+    <button type="button" class="pill${u.active?" on":""}" data-toggle="${esc(u.id)}" aria-pressed="${!!u.active}">${u.active?"Active":"Off"}</button></div>`).join(""):`<p class="note">No salespeople yet. Add the first one below.</p>`;
+}
+$("userList").addEventListener("click",async e=>{
+  const b=e.target.closest("[data-toggle]");if(!b)return;
+  const u=users.find(x=>x.id===b.dataset.toggle);if(!u)return;
+  b.disabled=true;
+  try{await db.collection(USERS).doc(u.id).update({active:!u.active});toast(u.active?`${u.name} can no longer log in`:`${u.name} can log in again`);}
+  catch(_){toast("Couldn't change access. Try again.");b.disabled=false;}
+});
+$("userForm").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const name=$("u-name").value.trim(), username=$("u-user").value.trim().toLowerCase(), pw=$("u-pass").value;
+  $("u-done").hidden=true;
+  if(!name) return showErr("u-err","Enter the salesperson's name.");
+  if(!/^[a-z0-9._-]{3,30}$/.test(username)) return showErr("u-err","Username: 3–30 letters or numbers, no spaces (dot, dash and underscore are fine).");
+  if(username===ADMIN_USERNAME) return showErr("u-err","That username is reserved for the admin.");
+  if(pw.length<6) return showErr("u-err","Password must be at least 6 characters.");
+  showErr("u-err","");$("u-save").disabled=true;
+  try{
+    const sec=firebase.apps.find(a=>a.name==="creator")||firebase.initializeApp(FIREBASE_CONFIG,"creator");
+    try{await sec.auth().setPersistence(firebase.auth.Auth.Persistence.NONE);}catch(_){}
+    const cred=await sec.auth().createUserWithEmailAndPassword(toEmail(username),pw);
+    const uid=cred.user.uid; await sec.auth().signOut();
+    await db.collection(USERS).doc(uid).set({name,username,active:true,createdAt:nowISO()});
+    $("u-ok").textContent=`Login created for ${name}. Username: ${username}`;
+    $("u-wa").href="https://wa.me/?text="+encodeURIComponent(`*ENTRIX Contact Register*\nHi ${name}, your login:\nLink: ${APP_LINK}\nUsername: ${username}\nPassword: ${pw}\nPlease change your password after first login (tap your name → Change my password).`);
+    $("u-done").hidden=false;["u-name","u-user","u-pass"].forEach(i=>$(i).value="");
+  }catch(err){
+    const c=err&&err.code||"";
+    showErr("u-err",c==="auth/email-already-in-use"?"That username is already taken. Choose another.":c==="auth/weak-password"?"Choose a stronger password.":c==="auth/operation-not-allowed"?"Turn on Email/Password sign-in in Firebase → Authentication first.":"Couldn't create the login. Check your internet and try again.");
+  }finally{$("u-save").disabled=false;}
+});
+
+/* ---------- PDF / print ---------- */
+$("pdf").addEventListener("click",()=>{
+  $("printSub").textContent=scopeLabel()+" · "+new Date().toLocaleDateString("en-GB")+" · Temasana, Nagpur | sales01@entrix.co.in | +91 95525 52667";
+  window.print();
+});
+$("pdfdl").addEventListener("click",async()=>{
+  const g=visibleGroups(); if(!g.length) return;
+  if(!window.jspdf){toast("PDF tool didn't load. Check your internet and reload.");return;}
+  const {jsPDF}=window.jspdf, doc=new jsPDF({orientation:"landscape",unit:"mm",format:"a4"});
+  const W=doc.internal.pageSize.getWidth(), today=new Date().toLocaleDateString("en-GB");
+  doc.setFillColor(31,78,120);doc.rect(0,0,W,22,"F");
+  doc.setTextColor(255);doc.setFont("helvetica","bold");doc.setFontSize(16);
+  doc.text("ENTRIX Innovation — Contact List",W/2,10,{align:"center"});
+  doc.setFont("helvetica","normal");doc.setFontSize(9);
+  doc.text("Temasana, Nagpur  |  sales01@entrix.co.in  |  +91 95525 52667",W/2,16.5,{align:"center"});
+  doc.setTextColor(60);doc.setFontSize(9);
+  const n=g.reduce((t,x)=>t+x[1].length,0);
+  doc.text(`${scopeLabel().replace(/[“”]/g,'"')}  ·  ${n} contacts`,14,29);doc.text(`Date: ${today}`,W-14,29,{align:"right"});
+  let y=33;
+  for(const [c,items] of g){
+    if(y>175){doc.addPage();y=14;}
+    doc.setFillColor(...(PDFCOL[c]||[61,122,122]));doc.rect(14,y,W-28,7,"F");
+    doc.setTextColor(255);doc.setFont("helvetica","bold");doc.setFontSize(10.5);
+    doc.text(`${c.toUpperCase()}  (${items.length})`,17,y+4.9);
+    doc.autoTable({startY:y+7,margin:{left:14,right:14},theme:"grid",
+      head:[["Sr.","Name / Firm","Work type","Mobile No.","GSTIN","Area / City","Address"]],
+      body:items.map((r,i)=>[i+1,r.name+(r.firm?"\n"+r.firm:""),[r.sub,r.trade].filter(Boolean).join("\n"),(r.mobile||"")+(r.alt?"\n"+r.alt:""),r.gstin||"",locText(r),addrExtra(r)]),
+      styles:{font:"helvetica",fontSize:9,cellPadding:1.8,lineColor:[200,205,210],lineWidth:.2,textColor:[25,33,43]},
+      headStyles:{fillColor:[217,225,242],textColor:[25,33,43],fontStyle:"bold"},
+      alternateRowStyles:{fillColor:[245,246,248]},
+      columnStyles:{0:{cellWidth:10,halign:"center"},1:{cellWidth:50},2:{cellWidth:40},3:{cellWidth:32,halign:"center"},4:{cellWidth:36},5:{cellWidth:45}}});
+    y=doc.lastAutoTable.finalY+8;
+  }
+  const pages=doc.internal.getNumberOfPages();
+  for(let i=1;i<=pages;i++){doc.setPage(i);doc.setFontSize(8);doc.setTextColor(120);doc.text(`Page ${i} of ${pages}`,W-14,doc.internal.pageSize.getHeight()-6,{align:"right"});}
+  const name=`ENTRIX_Contacts_${(filter==="All"?"All":filter).replace(/\s+/g,"_")}_${today.replace(/\//g,"-")}.pdf`;
+  const file=new File([doc.output("blob")],name,{type:"application/pdf"});
+  if(navigator.canShare&&navigator.canShare({files:[file]})){
+    try{await navigator.share({files:[file],title:"ENTRIX Contact List"});return;}catch(e){if(e&&e.name==="AbortError")return;}
+  }
+  doc.save(name);toast("PDF saved to Downloads");
+});
+
+/* ---------- auth + data ---------- */
+function stopAll(){unsubs.forEach(f=>{try{f();}catch(_){}});unsubs=[];rows=[];users=[];migrated=false;cfg={subs:{},cities:{}};}
+function startConfig(){
+  unsubs.push(db.collection(CONFIG).doc("lists").onSnapshot(d=>{const x=d.exists?d.data():{};cfg={subs:x.subs||{},cities:x.cities||{}};render();if(!$("listsBg").hidden){renderListsSubs();renderListsAreas();}},()=>{}));
+}
+function guessLoc(addr){
+  const parts=String(addr||"").split(",").map(p=>p.trim()).filter(Boolean);
+  const nag=DEF_CITIES.Nagpur, low=nag.map(a=>a.toLowerCase());
+  let area="",city="";
+  for(const p of parts){const i=low.indexOf(p.toLowerCase());if(i>=0){area=nag[i];break;}}
+  if(area||parts.some(p=>p.toLowerCase()==="nagpur")) city="Nagpur";
+  else if(parts.length===1) city=parts[0];
+  return {city,area};
+}
+function showLogin(){
+  $("appView").hidden=true;$("loginView").hidden=false;
+  document.querySelectorAll(".sheet-bg").forEach(bg=>bg.hidden=true);
+  showErr("l-err",loginMsg);loginMsg="";$("l-btn").disabled=false;
+}
+function showApp(){
+  $("loginView").hidden=true;$("appView").hidden=false;
+  $("acctName").textContent=me.name;$("acctRole").textContent=me.isAdmin?"ADMIN":"SALES";
+  filter="All";ownerF="all";q="";subF="all";cityF="all";areaF="all";$("q").value="";
+  $("out").innerHTML='<div class="empty">Loading contacts…</div>';
+  renderOwnerFilter();
+}
+function onDataErr(err){
+  if(err&&err.code==="permission-denied"){loginMsg="Your access has been turned off. Contact the admin.";auth.signOut();}
+  else $("out").innerHTML='<div class="empty">The list stopped updating. Check your internet and reload the page.</div>';
+}
+async function migrateOld(snap){
+  // fill in owner/private flag (pre-login entries) and subcategory/city/area (pre-Nov-21 entries)
+  if(migrated) return; migrated=true;
+  const todo=snap.docs.filter(d=>{const x=d.data();return !("city" in x)||!("sub" in x);});
+  for(let i=0;i<todo.length;i+=400){
+    const b=db.batch();
+    todo.slice(i,i+400).forEach(d=>{const x=d.data();
+      const u={};
+      if(!("city" in x)){const g=guessLoc(x.address);u.city=g.city;u.area=g.area;}
+      if(!("sub" in x)){const t=String(x.trade||"").trim();u.sub=t&&t.toLowerCase()!==String(x.category||"").toLowerCase()?t:"";if(t)u.trade="";}
+      b.update(d.ref,u);});
+    try{await b.commit();}catch(_){}
+  }
+}
+function startAdmin(){
+  startConfig();
+  unsubs.push(db.collection(CONTACTS).onSnapshot(s=>{rows=s.docs.map(d=>({id:d.id,...d.data()}));if(!s.metadata.fromCache)migrateOld(s);render();if(!$("usersBg").hidden)renderUsers();},onDataErr));
+  unsubs.push(db.collection(USERS).onSnapshot(s=>{users=s.docs.map(d=>({id:d.id,...d.data()}));renderOwnerFilter();render();if(!$("usersBg").hidden)renderUsers();},()=>{}));
+}
+function startSales(){
+  startConfig();
+  let shared=new Map(), mine=new Map();
+  const merge=()=>{const m=new Map(shared);mine.forEach((v,k)=>m.set(k,v));rows=[...m.values()];render();};
+  unsubs.push(db.collection(CONTACTS).where("private","==",false).onSnapshot(s=>{shared=new Map(s.docs.map(d=>[d.id,{id:d.id,...d.data()}]));merge();},onDataErr));
+  unsubs.push(db.collection(CONTACTS).where("ownerUid","==",me.uid).onSnapshot(s=>{mine=new Map(s.docs.map(d=>[d.id,{id:d.id,...d.data()}]));merge();},onDataErr));
+}
+$("loginForm").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const u=$("l-user").value.trim(),p=$("l-pass").value;
+  if(!u||!p) return showErr("l-err","Enter your username and password.");
+  if(!auth) return showErr("l-err","Couldn't connect. Check your internet and reload the page.");
+  showErr("l-err","");$("l-btn").disabled=true;
+  try{await auth.signInWithEmailAndPassword(toEmail(u),p);$("l-pass").value="";}
+  catch(err){
+    const c=err&&err.code||"";
+    showErr("l-err",/wrong-password|user-not-found|invalid-credential|invalid-email|invalid-login/.test(c)?"Wrong username or password.":c==="auth/too-many-requests"?"Too many tries. Wait a few minutes and try again.":c==="auth/user-disabled"?"This login has been turned off. Contact the admin.":c==="auth/network-request-failed"?"No internet connection. Connect and try again.":/operation-not-allowed|configuration-not-found/.test(c)?"Logins aren't switched on yet. In Firebase → Authentication, enable Email/Password.":"Couldn't log in ("+(c||(err&&err.message)||"unknown error")+"). Try again.");
+    $("l-btn").disabled=false;
+  }
+});
+
+(function boot(){
+  if(!window.firebase){$("out").innerHTML='<div class="empty">Couldn\'t load the database. Check your internet and reload the page.</div>';$("add").hidden=true;return;}
+  firebase.initializeApp(FIREBASE_CONFIG);
+  db=firebase.firestore();
+  try{db.enablePersistence({synchronizeTabs:true}).catch(()=>{});}catch(_){}
+  me={uid:"",email:"",isAdmin:true,name:"Team"};
+  showApp();$("acctName").textContent="Settings";$("acctRole").hidden=true;
+  startConfig();
+  unsubs.push(db.collection(CONTACTS).onSnapshot(s=>{rows=s.docs.map(d=>({id:d.id,...d.data()}));if(!s.metadata.fromCache)migrateOld(s);render();},
+    err=>{$("out").innerHTML='<div class="empty">'+(err&&err.code==="permission-denied"?"The database refused access. Update the Firestore rules.":"The list stopped updating. Check your internet and reload the page.")+'</div>';}));
+})();
+})();
+</script>
+</body></html>
